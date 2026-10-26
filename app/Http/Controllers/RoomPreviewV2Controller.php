@@ -17,34 +17,42 @@ class RoomPreviewV2Controller extends Controller
         abort_unless($roomImage->user_id === $request->user()->id, 404);
         abort_unless($this->enabledFor($request->user()->id), 404, 'This preview pipeline is not enabled.');
 
-        $unexpected = array_diff(array_keys($request->except('_token')), ['furniture_id']);
-        abort_if($unexpected !== [], 422, 'Only furniture_id is accepted.');
-        $data = $request->validate(['furniture_id' => ['required', 'integer', 'min:1']]);
+        $unexpected = array_diff(array_keys($request->except('_token')), ['furniture_id', 'retry']);
+        abort_if($unexpected !== [], 422, 'Only furniture_id and retry are accepted.');
+        $data = $request->validate(['furniture_id' => ['required', 'integer', 'min:1'], 'retry' => ['sometimes', 'boolean']]);
         $product = FurnitureProduct::query()->findOrFail((int) $data['furniture_id']);
         abort_unless($product->status === 'active', 422, 'This catalog item is inactive.');
         abort_unless($photos->exists($roomImage->image_path), 422, 'The room photo is unavailable.');
 
-        $hash = $roomImage->image_sha256 ?: $photos->metadata($roomImage->image_path)['sha256'];
-        $version = (string) config('roompreview.pipeline_version', 'v2');
-        $cacheKey = hash('sha256', implode('|', [$hash, $product->id, $product->updated_at?->toISOString(), $version]));
-        $generation = RoomPreviewGeneration::firstOrNew([
-            'room_image_id' => $roomImage->id,
-            'furniture_product_id' => $product->id,
-        ]);
-        if ($generation->exists && hash_equals((string) $generation->cache_key, $cacheKey)
-            && in_array($generation->status, ['queued', 'processing', 'retrying', 'completed', 'fallback'], true)) {
-            return response()->json($this->payload($generation, $roomImage), in_array($generation->status, ['completed', 'fallback'], true) ? 200 : 202);
+        if ($request->boolean('retry')) {
+            abort_unless($roomImage->gemini_consent_at, 403, 'Enable AI processing for this photo before retrying.');
         }
 
-        $generation->fill([
-            'status' => 'queued', 'attempts' => 0, 'message' => 'Preview queued.',
-            'placement_json' => null, 'cache_key' => $cacheKey, 'failure_code' => null,
-            'confidence' => null, 'confidence_label' => null, 'metrics_json' => null, 'completed_at' => null,
-        ]);
-        $generation->save();
-        GenerateRoomPreviewV2::dispatch($generation->id, $cacheKey);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $roomImage, $photos, $product) {
+            RoomImage::whereKey($roomImage->id)->lockForUpdate()->firstOrFail();
+            $hash = $roomImage->image_sha256 ?: $photos->metadata($roomImage->image_path)['sha256'];
+            $version = (string) config('roompreview.pipeline_version', 'v2');
+            $cacheKey = hash('sha256', implode('|', [$hash, $product->id, $product->updated_at?->toISOString(), $version]));
+            $generation = RoomPreviewGeneration::firstOrNew([
+                'room_image_id' => $roomImage->id,
+                'furniture_product_id' => $product->id,
+            ]);
+            if ($generation->exists && hash_equals((string) $generation->cache_key, $cacheKey)
+                && in_array($generation->status, ['queued', 'processing', 'retrying', 'completed', 'fallback'], true)
+                && ! ($request->boolean('retry') && $generation->status === 'fallback')) {
+                return response()->json($this->payload($generation, $roomImage), in_array($generation->status, ['completed', 'fallback'], true) ? 200 : 202);
+            }
 
-        return response()->json($this->payload($generation, $roomImage), 202);
+            $generation->fill([
+                'status' => 'queued', 'attempts' => 0, 'message' => 'Preview queued.',
+                'placement_json' => null, 'cache_key' => $cacheKey, 'failure_code' => null,
+                'confidence' => null, 'confidence_label' => null, 'metrics_json' => null, 'completed_at' => null,
+            ]);
+            $generation->save();
+            GenerateRoomPreviewV2::dispatch($generation->id, $cacheKey)->afterCommit();
+
+            return response()->json($this->payload($generation, $roomImage), 202);
+        });
     }
 
     public function status(Request $request, RoomImage $roomImage, RoomPreviewGeneration $generation)

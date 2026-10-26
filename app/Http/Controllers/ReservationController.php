@@ -19,6 +19,7 @@ class ReservationController extends Controller
 
     public function store(Request $request)
     {
+        $request->mergeIfMissing(['branch' => config('furnicraft.branch')]);
         $data = $request->validate([
             'furniture_product_id' => ['required', 'exists:furniture_products,id'],
             'recommendation_id' => ['nullable', 'exists:recommendations,id'],
@@ -67,7 +68,12 @@ class ReservationController extends Controller
             $reservation->transactions()->create(['actor_id' => $request->user()->id, 'action' => 'submitted', 'notes' => 'Reservation request submitted by customer.']);
             return $reservation;
         });
-        if (! $reservation) return back()->withErrors(['furniture_product_id' => 'You already have an active request for this item.'])->withInput();
+        if (! $reservation) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['furniture_product_id' => 'You already have an active request for this item.']);
+        }
+        if ($request->expectsJson()) {
+            return response()->json(['message' => "Reservation {$reservation->reference} was submitted for review. No payment has been collected.", 'reference' => $reservation->reference], 201);
+        }
         return redirect()->route('reservations.index')->with('success', "Reservation {$reservation->reference} was submitted for review. No payment has been collected.");
     }
 

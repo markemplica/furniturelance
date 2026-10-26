@@ -194,6 +194,9 @@ class RoomController extends Controller
             $roomImage->delete();
         });
         $audit->record('room_photo_deleted', 'room_image', $roomId);
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'The room photo and generated previews were deleted.', 'room_id' => $roomId]);
+        }
 
         return redirect()->route('preferences.edit')->with('success', 'The room photo and generated previews were deleted.');
     }

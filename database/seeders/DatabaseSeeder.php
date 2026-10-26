@@ -18,10 +18,17 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $admin = User::updateOrCreate(['email' => 'admin@furnicraft.local'], ['name' => 'Lance Furniture Owner', 'password' => Hash::make('password'), 'role' => 'admin', 'branch' => config('furnicraft.branch'), 'is_active' => true]);
-        $demo = User::updateOrCreate(['email' => 'demo@furnicraft.local'], ['name' => 'Demo Customer', 'password' => Hash::make('password'), 'role' => 'customer', 'phone' => '0917 000 0000', 'is_active' => true]);
-        $neighbor = User::updateOrCreate(['email' => 'neighbor@furnicraft.local'], ['name' => 'Sample Customer', 'password' => Hash::make('password'), 'role' => 'customer', 'is_active' => true]);
-        User::whereIn('email', ['admin@furnicraft.local', 'demo@furnicraft.local', 'neighbor@furnicraft.local'])->whereNull('email_verified_at')->update(['email_verified_at' => now()]);
+        // Reuse the owner even after their login email has been changed.
+        $admin = User::where('role', 'admin')->orderBy('id')->first();
+        if (! $admin) {
+            if (User::where('email', 'admin@furnicraft.local')->exists()) {
+                throw new \RuntimeException('The demo admin email belongs to another account. No account was promoted.');
+            }
+            $admin = User::create(['email' => 'admin@furnicraft.local', 'name' => 'Lance Furniture Owner', 'password' => Hash::make('password'), 'role' => 'admin', 'branch' => config('furnicraft.branch'), 'is_active' => true, 'email_verified_at' => now()]);
+        }
+        // Defaults apply only to new demo accounts; preserve existing security settings.
+        $demo = User::firstOrCreate(['email' => 'demo@furnicraft.local'], ['name' => 'Demo Customer', 'password' => Hash::make('password'), 'role' => 'customer', 'phone' => '0917 000 0000', 'is_active' => true, 'email_verified_at' => now()]);
+        $neighbor = User::firstOrCreate(['email' => 'neighbor@furnicraft.local'], ['name' => 'Sample Customer', 'password' => Hash::make('password'), 'role' => 'customer', 'is_active' => true, 'email_verified_at' => now()]);
 
         $products = [
             ['Heritage Dining Set', 'Dining Set', 'A six-seat solid wood dining set designed for everyday family meals and gatherings.', 'Mahogany', 'Natural', 'Traditional', 48900, 180, 95, 76, 'dining.svg', ['dining', 'family', 'six seat']],

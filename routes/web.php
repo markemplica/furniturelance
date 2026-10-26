@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [DashboardController::class, 'index'])->name('home');
 Route::view('/how-it-works', 'how-it-works')->name('how-it-works');
 Route::view('/privacy-policy', 'privacy-policy')->name('privacy-policy');
+Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
+Route::get('/catalog/search', [CatalogController::class, 'search'])->name('catalog.search');
+Route::get('/catalog/{furnitureProduct}', [CatalogController::class, 'show'])->name('catalog.show');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -36,6 +39,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/forgot-password', [PasswordResetController::class, 'sendCode'])->name('password.email')->middleware('throttle:3,1');
     Route::get('/reset-password', [PasswordResetController::class, 'showReset'])->name('password.reset');
     Route::post('/reset-password/resend', [PasswordResetController::class, 'resendCode'])->name('password.resend')->middleware('throttle:3,1');
+    Route::post('/reset-password/verify', [PasswordResetController::class, 'verifyCode'])->name('password.verify')->middleware('throttle:8,1');
     Route::post('/reset-password', [PasswordResetController::class, 'reset'])->name('password.update')->middleware('throttle:8,1');
 });
 Route::middleware('auth')->group(function () {
@@ -57,9 +61,7 @@ Route::middleware('auth')->group(function () {
         Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
         Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
         Route::delete('/profile/account', [ProfileController::class, 'destroy'])->name('profile.destroy');
-        Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
-        Route::get('/catalog/search', [CatalogController::class, 'search'])->name('catalog.search');
-        Route::get('/catalog/{furnitureProduct}', [CatalogController::class, 'show'])->name('catalog.show');
+        Route::get('/favorites', [CatalogController::class, 'favorites'])->name('favorites.index');
         Route::post('/catalog/{furnitureProduct}/favorite', [CatalogController::class, 'favorite'])->name('catalog.favorite');
         Route::get('/preferences', [PreferenceController::class, 'edit'])->name('preferences.edit');
         Route::post('/preferences', [PreferenceController::class, 'update'])->name('preferences.update');
@@ -95,7 +97,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/reservations', [AdminReservationController::class, 'index'])->name('reservations.index');
         Route::get('/reports', [App\Http\Controllers\Admin\ReportsController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [App\Http\Controllers\Admin\ReportsController::class, 'export'])->name('reports.export');
-        Route::get('/recommendation-evaluation', [App\Http\Controllers\Admin\RecommendationEvaluationController::class, 'index'])->name('recommendation-evaluation');
         Route::get('/privacy-audit', [App\Http\Controllers\Admin\PrivacyAuditController::class, 'index'])->name('privacy-audit');
         Route::patch('/reservations/{reservation}', [AdminReservationController::class, 'update'])->name('reservations.update');
     });

@@ -24,9 +24,18 @@ class PasswordResetController extends Controller
         $latestCode = $email
             ? PasswordResetCode::where('email', $email)->latest()->first()
             : null;
+        $verifiedEmail = $request->session()->get('password_reset_verified_email');
+        $verified = $verifiedEmail && $verifiedEmail === $email
+            && PasswordResetCode::where('email', $verifiedEmail)
+                ->whereNull('used_at')->where('expires_at', '>', now())->exists();
+
+        if ($verifiedEmail && ! $verified) {
+            $request->session()->forget('password_reset_verified_email');
+        }
 
         return view('auth.reset-password', [
             'email' => $email,
+            'verified' => (bool) $verified,
             'resendAvailableAt' => $latestCode?->created_at?->copy()->addMinute()->timestamp,
         ]);
     }
@@ -36,6 +45,7 @@ class PasswordResetController extends Controller
         $data = $request->validate(['email' => ['required', 'email']]);
         $email = strtolower($data['email']);
         $request->session()->put('reset_email', $email);
+        $request->session()->forget('password_reset_verified_email');
         $user = User::where('email', $email)->where('is_active', true)->first();
 
         if (! $user) {
@@ -69,6 +79,8 @@ class PasswordResetController extends Controller
                 ->withErrors(['email' => 'Request a reset code for this email first.']);
         }
 
+        $request->session()->forget('password_reset_verified_email');
+
         if ($this->codeIsCoolingDown($email)) {
             return redirect()->route('password.reset')
                 ->with('warning', 'Please wait for the 60-second countdown before requesting another code.');
@@ -90,17 +102,45 @@ class PasswordResetController extends Controller
             ->with('success', 'A new reset code was sent. Check your inbox and spam folder.');
     }
 
+    public function verifyCode(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+            'code' => ['required', 'digits:6'],
+        ]);
+        $email = strtolower($data['email']);
+        $sessionEmail = strtolower((string) $request->session()->get('reset_email', ''));
+        $record = PasswordResetCode::where('email', $email)
+            ->whereNull('used_at')->where('expires_at', '>', now())->latest()->first();
+
+        if ($sessionEmail === '' || ! hash_equals($sessionEmail, $email)
+            || ! $record || ! Hash::check($data['code'], $record->code_hash)) {
+            $request->session()->forget('password_reset_verified_email');
+
+            return redirect()->route('password.reset')
+                ->withErrors(['code' => 'The code is incorrect or has expired. Request a new code and try again.']);
+        }
+
+        $request->session()->put('password_reset_verified_email', $email);
+
+        return redirect()->route('password.reset')->with('success', 'Code verified. You can now choose a new password.');
+    }
+
     public function reset(Request $request)
     {
-        $data = $request->validate(['email' => ['required', 'email'], 'code' => ['required', 'digits:6'], 'password' => ['required', 'confirmed', 'min:8']]);
-        $record = PasswordResetCode::where('email', strtolower($data['email']))->whereNull('used_at')->where('expires_at', '>', now())->latest()->first();
-        if (! $record || ! Hash::check($data['code'], $record->code_hash)) {
-            return back()->withErrors(['code' => 'The code is incorrect or has expired.'])->withInput($request->only('email'));
+        $data = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'confirmed', 'min:8']]);
+        $email = strtolower($data['email']);
+        $verifiedEmail = strtolower((string) $request->session()->get('password_reset_verified_email', ''));
+        $record = PasswordResetCode::where('email', $email)->whereNull('used_at')->where('expires_at', '>', now())->latest()->first();
+        if ($verifiedEmail === '' || ! hash_equals($verifiedEmail, $email) || ! $record) {
+            $request->session()->forget('password_reset_verified_email');
+
+            return redirect()->route('password.reset')->withErrors(['code' => 'Verify a current reset code before choosing a new password.']);
         }
-        $user = User::where('email', strtolower($data['email']))->where('is_active', true)->firstOrFail();
+        $user = User::where('email', $email)->where('is_active', true)->firstOrFail();
         $user->update(['password' => Hash::make($data['password']), 'remember_token' => Str::random(60)]);
         PasswordResetCode::where('email', $record->email)->whereNull('used_at')->update(['used_at' => now()]);
-        $request->session()->forget('reset_email');
+        $request->session()->forget(['reset_email', 'password_reset_verified_email']);
 
         return redirect()->route('login')->with('success', 'Your password has been changed. You can now sign in.');
     }

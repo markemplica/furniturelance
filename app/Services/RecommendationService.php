@@ -16,10 +16,11 @@ class RecommendationService
 {
     public function __construct(private GeminiService $gemini) {}
 
-    public function generate(User $user, CustomerPreference $preference, ?RoomImage $roomImage, string $furnitureType): Recommendation
+    public function generate(User $user, CustomerPreference $preference, ?RoomImage $roomImage, string $furnitureType, ?Recommendation $existing = null): Recommendation
     {
         $products = FurnitureProduct::query()->where('status', 'active')->get()
             ->filter(fn (FurnitureProduct $product) => $product->recommendationType() === $furnitureType)
+            ->filter(fn (FurnitureProduct $product) => $this->matchesPreferences($product, $preference))
             ->values();
         $hasPriorSignals = Favorite::where('user_id', $user->id)->exists()
             || Reservation::where('user_id', $user->id)->exists();
@@ -35,19 +36,22 @@ class RecommendationService
 
         $ai = $this->gemini->localRecommendationSummary(array_merge($preference->toArray(), ['furniture_type' => $furnitureType]));
 
-        return DB::transaction(function () use ($user, $preference, $roomImage, $furnitureType, $ranked, $ai, $hasPriorSignals) {
-            $recommendation = Recommendation::create([
+        return DB::transaction(function () use ($user, $preference, $roomImage, $furnitureType, $ranked, $ai, $hasPriorSignals, $existing) {
+            $recommendation = $existing ?? new Recommendation;
+            $recommendation->fill([
                 'user_id' => $user->id,
                 'customer_preference_id' => $preference->id,
                 'room_image_id' => $roomImage?->id,
                 'furniture_type' => $furnitureType,
                 'summary' => $ai['text'],
-                'algorithm_version' => 'hybrid-v2-type-filtered-82-18',
+                'algorithm_version' => 'hybrid-v3-strict-preferences',
                 'gemini_used' => $ai['used'],
                 'is_cold_start' => ! $hasPriorSignals,
                 'content_weight' => 0.82,
                 'collaborative_weight' => 0.18,
             ]);
+            $recommendation->save();
+            $recommendation->items()->delete();
 
             foreach ($ranked as $index => $row) {
                 $product = $row['product'];
@@ -93,6 +97,37 @@ class RecommendationService
         }
 
         return round(min(100, $score), 3);
+    }
+
+    public function matchesPreferences(FurnitureProduct $product, CustomerPreference $preference): bool
+    {
+        return $product->status === 'active'
+            && (float) $product->price >= (float) $preference->budget_min
+            && (float) $product->price <= (float) $preference->budget_max
+            && $this->matches($preference->wood_type, $product->wood_type)
+            && $this->matches($preference->varnish_finish, $product->varnish_finish)
+            && $this->matches($preference->style, $product->style);
+    }
+
+    public function closestSuggestions(CustomerPreference $preference, string $type): Collection
+    {
+        return FurnitureProduct::where('status', 'active')->get()
+            ->filter(fn ($product) => $product->recommendationType() === $type && ! $this->matchesPreferences($product, $preference))
+            ->map(function ($product) use ($preference) {
+                $differences = [];
+                foreach (['wood_type' => 'Wood', 'style' => 'Style', 'varnish_finish' => 'Finish'] as $field => $label) {
+                    if (! $this->matches($preference->$field, $product->$field)) {
+                        $differences[] = $label.': '.($product->$field ?: 'unspecified').' instead of '.$preference->$field;
+                    }
+                }
+                $price = (float) $product->price;
+                $gap = max(0, $price - (float) $preference->budget_max, (float) $preference->budget_min - $price);
+                if ($gap > 0) {
+                    $differences[] = 'PHP '.number_format($gap, 2).($price > (float) $preference->budget_max ? ' above your maximum budget' : ' below your minimum budget');
+                }
+                return ['product' => $product, 'differences' => $differences,
+                    'distance' => count($differences) + $gap / max(1, (float) $preference->budget_max)];
+            })->sortBy(fn ($row) => [$row['distance'], (float) $row['product']->price, $row['product']->id])->take(3)->values();
     }
 
     private function collaborativeScores(User $user, Collection $products): array

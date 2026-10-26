@@ -42,3 +42,28 @@ test('footprints crossing a concave floor edge are rejected even when some corne
     assert.equal(geometry.polygonInsidePolygon(crossingFootprint, concaveFloor), false);
     assert.equal(geometry.polygonInsidePolygon(safeFootprint, concaveFloor), true);
 });
+function photoEngine(roomWidth = 0, imageWidth = 1200, imageHeight = 800) {
+    const engine = Object.create(globalThis.RoomPreviewEngine.prototype);
+    Object.assign(engine, { frame: { dataset: { roomWidth } }, room: { naturalWidth: imageWidth, naturalHeight: imageHeight }, item: { naturalWidth: 600, naturalHeight: 300 }, floor: [[0.17,0.58],[0.83,0.58],[0.99,0.99],[0.01,0.99]], horizon: 0.4, analysis: {}, vision: {}, blocked: [], existing: [], openings: [], warnings: [], placementMode: 'floor' });
+    return engine;
+}
+
+test('photo-only sizing ignores customer room measurements', () => {
+    const dims = {width:225, depth:90, height:92};
+    const a = photoEngine(2).autoFit(dims);
+    const b = photoEngine(50).autoFit(dims);
+    assert.deepEqual(a, b);
+    assert.ok(a.width > 0.2, 'sala set must not be a tiny icon');
+    assert.ok(a.y > 0.7, 'furniture should be grounded in the visible floor');
+});
+
+test('furniture keeps its pixel aspect ratio in landscape and portrait rooms', () => {
+    for (const [w,h] of [[1200,800],[800,1200]]) {
+        const engine = photoEngine(0,w,h);
+        const p = engine.autoFit({width:225,depth:90,height:92});
+        assert.ok(p);
+        assert.ok(Math.abs((p.width*w)/(p.height*h)-2) < 1e-8);
+        assert.ok(p.x-p.width/2 >= 0.02 && p.x+p.width/2 <= 0.98);
+        assert.ok(p.y-p.height >= 0.02 && p.y <= 0.98);
+    }
+});

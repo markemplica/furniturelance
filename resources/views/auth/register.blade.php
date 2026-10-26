@@ -19,7 +19,7 @@
             <p class="text-muted auth-panel-intro">We will email you a 6-digit verification code before activating your account.</p>
             <form method="POST" action="{{ route('register.store') }}" class="vstack gap-3 auth-form">
                 @csrf
-                <div class="row g-3">
+                <div class="row g-3 registration-name-fields">
                     <div class="col-md-4">
                         <label class="form-label" for="first_name">First Name</label>
                         <input class="form-control @error('first_name') is-invalid @enderror" id="first_name" name="first_name" value="{{ old('first_name') }}" maxlength="50" required autocomplete="given-name" aria-describedby="first-name-error">
@@ -60,8 +60,9 @@
                     @error('email')<div class="invalid-feedback" id="register-email-error">{{ $message }}</div>@enderror
                 </div>
                 <div>
-                    <label class="form-label" for="phone">Phone <span class="text-muted">optional</span></label>
-                    <input class="form-control @error('phone') is-invalid @enderror" id="phone" type="tel" name="phone" value="{{ old('phone') }}" maxlength="32" autocomplete="tel" aria-describedby="phone-error">
+                    <label class="form-label" for="phone">Mobile number <span class="text-muted">(optional)</span></label>
+                    <input class="form-control @error('phone') is-invalid @enderror" id="phone" type="tel" name="phone" value="{{ old('phone') }}" placeholder="+63 917 123 4567" maxlength="32" autocomplete="tel" inputmode="tel" aria-describedby="phone-hint phone-error">
+                    <div class="form-text" id="phone-hint">Philippines: +63 followed by your 10-digit mobile number (omit the starting 0).</div>
                     @error('phone')<div class="invalid-feedback" id="phone-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="row g-3">

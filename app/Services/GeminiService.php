@@ -11,6 +11,25 @@ use Illuminate\Support\Facades\Storage;
 class GeminiService
 {
     private int $providerRequests = 0;
+    private ?int $requestCeiling = null;
+
+    public function limitProviderRequests(int $remaining): void
+    {
+        $this->requestCeiling = $this->providerRequests + max(0, $remaining);
+    }
+
+    public function clearProviderRequestLimit(): void
+    {
+        $this->requestCeiling = null;
+    }
+
+    private function countProviderRequest(): void
+    {
+        if ($this->requestCeiling !== null && $this->providerRequests >= $this->requestCeiling) {
+            throw new AiRequestBudgetExceeded;
+        }
+        $this->providerRequests++;
+    }
 
     public function __construct(private RoomPhotoService $roomPhotos, private AiTelemetry $telemetry) {}
 
@@ -29,7 +48,7 @@ class GeminiService
         $fallback = 'These suggestions balance your budget, preferred materials and finish, room fit, and signals from customers with similar interests.';
         $prompt = "You are FurniCraft for Lance Furniture Shop. In 2 concise sentences, explain this ranked furniture recommendation. Stay strictly within the supplied data. Do not mention products outside the list, payments, delivery tracking, inventory, AR, or 3D.\nPreferences: ".json_encode($preference)."\nRanked products: ".json_encode($products);
 
-        return $this->generate($prompt, $fallback, 'recommendation_explanation', timeout: 8, retryAttempts: 0, modelLimit: 1);
+        return $this->generate($prompt, $fallback, 'recommendation_explanation', timeout: 8, retryAttempts: 0, modelLimit: 2);
     }
 
     public function localRecommendationSummary(array $preference): array
@@ -171,7 +190,7 @@ class GeminiService
             ];
             $decoded = null;
             for ($attempt = 0; $attempt < 2; $attempt++) {
-                $response = $this->request($parts, true, $schema, 'room_analysis', 25, 0, 1);
+                $response = $this->request($parts, true, $schema, 'room_analysis', 25, 0, 2);
                 $candidate = json_decode($response, true);
                 $geometry = $this->sanitizeVisionGeometry($candidate['vision_geometry'] ?? null);
                 if (is_array($candidate) && is_array($geometry)) {
@@ -333,7 +352,6 @@ class GeminiService
             foreach ($models as $index => $model) {
                 $started = hrtime(true);
                 try {
-                    $this->providerRequests++;
                     $response = Http::withHeaders(['x-goog-api-key' => config('services.gemini.key')])
                         ->timeout(120)
                         ->retry(max(0, min(1, $retryAttempts)), 500)
@@ -467,22 +485,31 @@ class GeminiService
         foreach ($models as $index => $model) {
             $started = hrtime(true);
             try {
-                $this->providerRequests++;
                 $response = Http::timeout($timeout)->retry($retryAttempts, 250)
-                    ->withHeaders(['x-goog-api-key' => config('services.gemini.key')])->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
+                    ->withHeaders(['x-goog-api-key' => config('services.gemini.key')])
+                    ->beforeSending(fn () => $this->countProviderRequest())->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
                         'contents' => [['parts' => $parts]],
                         'generationConfig' => $json
                             ? array_filter([
-                                'responseFormat' => [
-                                    'text' => array_filter([
-                                        'mimeType' => 'application/json',
-                                        'schema' => $schema,
-                                    ]),
-                                ],
+                                'responseMimeType' => 'application/json',
+                                'responseJsonSchema' => $schema,
                                 'temperature' => 0,
                             ])
                             : ['temperature' => 0.25],
                     ]);
+                // Some models reject complex structured-output schemas. Retry JSON mode
+                // with the same shape in the prompt; callers still validate the result.
+                if ($response->status() === 400 && $json && $schema) {
+                    $jsonParts = $parts;
+                    $jsonParts[] = ['text' => 'Return JSON only matching this schema: '.json_encode($schema)];
+                    $response = Http::timeout($timeout)
+                        ->withHeaders(['x-goog-api-key' => config('services.gemini.key')])
+                    ->beforeSending(fn () => $this->countProviderRequest())
+                        ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
+                            'contents' => [['parts' => $jsonParts]],
+                            'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0],
+                        ]);
+                }
                 $httpStatus = $response->status();
                 $response->throw();
                 $response = $response->json();

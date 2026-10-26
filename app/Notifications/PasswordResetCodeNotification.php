@@ -18,9 +18,20 @@ class PasswordResetCodeNotification extends Notification
     {
         return (new MailMessage)
             ->subject('Your FurniCraft password reset code')
-            ->greeting('FurniCraft password reset')
-            ->line('Use this verification code to reset your password:')
-            ->line($this->code)
-            ->line('The code expires in 15 minutes and can only be used once. If you did not request it, you can ignore this email.');
+            ->view([
+                'html' => 'emails.customer-notification',
+                'text' => 'emails.customer-notification-text',
+            ], [
+                'eyebrow' => 'ACCOUNT SECURITY',
+                'heading' => 'Reset your password',
+                'intro' => 'Hello '.$notifiable->name.'. Use the secure code below on FurniCraft to choose a new password.',
+                'codeLabel' => 'YOUR PASSWORD RESET CODE',
+                'code' => $this->code,
+                'expiry' => 'This code expires in 15 minutes and can only be used once.',
+                'details' => [],
+                'buttonLabel' => null,
+                'buttonUrl' => null,
+                'note' => 'If you did not request a password reset, ignore this email. Your password will not change unless you submit the code and a new password.',
+            ]);
     }
 }

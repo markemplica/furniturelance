@@ -28,6 +28,25 @@ class WorkflowRegressionTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_reservation_popup_submits_and_reports_errors_without_redirecting(): void
+    {
+        $customer = User::factory()->create();
+        $product = $this->product();
+        $this->actingAs($customer)->get(route('catalog.show', $product))
+            ->assertOk()->assertSee('data-reservation-open', false)->assertSee('<dialog', false);
+        $payload = ['furniture_product_id' => $product->id, 'branch' => config('furnicraft.branch')];
+        $this->postJson(route('reservations.store'), array_merge($payload, ['branch' => 'invalid']))
+            ->assertUnprocessable()->assertJsonValidationErrors('branch');
+        $this->assertDatabaseCount('reservations', 0);
+        $response = $this->postJson(route('reservations.store'), ['furniture_product_id' => $product->id])
+            ->assertCreated()->assertJsonStructure(['message', 'reference']);
+        $this->assertDatabaseHas('reservations', ['reference' => $response->json('reference'), 'user_id' => $customer->id]);
+        $this->assertDatabaseHas('reservations', ['reference' => $response->json('reference'), 'branch' => config('furnicraft.branch')]);
+        $this->postJson(route('reservations.store'), $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('furniture_product_id');
+        $this->assertDatabaseCount('reservations', 1);
+    }
+
     private function product(): FurnitureProduct
     {
         return FurnitureProduct::create([
@@ -101,7 +120,7 @@ class WorkflowRegressionTest extends TestCase
         ])->assertStatus(422);
         $this->assertSame(1, $reservation->transactions()->count());
         $this->actingAs($customer)->post(route('reservations.store'), [
-            'furniture_product_id' => $reservation->furniture_product_id, 'branch' => 'Lingayen',
+            'furniture_product_id' => $reservation->furniture_product_id, 'branch' => config('furnicraft.branch'),
         ])->assertRedirect(route('reservations.index'));
         $this->assertDatabaseCount('reservations', 2);
     }

@@ -3,12 +3,15 @@
 @section('content')
 @php
     $selectedItem = $recommendation?->items->firstWhere('furniture_product_id', $selectedProduct?->id);
+    $hasAiRoomFit = $roomImage->analysis_status === 'completed' && data_get($roomImage->analysis, 'gemini_used') && filled(data_get($roomImage->analysis, 'vision_geometry'));
 @endphp
 <div class="room-compare-layout">
     <aside class="room-compare-story">
         <p class="section-kicker">Your room, reimagined</p>
         <h1>See <span data-preview-name>{{ $selectedProduct?->name ?? 'furniture' }}</span> in your space.</h1>
-        <p class="room-compare-intro">FurniCraft automatically positions and scales the selected furniture using the clear area detected in the room photo and its catalog dimensions.</p>
+        <p class="room-compare-intro">{{ $hasAiRoomFit
+            ? 'FurniCraft automatically positions and scales the selected furniture using the clear area and perspective detected in the room photo.'
+            : 'This room is currently using a local 2D estimate because AI fitting was unavailable. Restore Gemini access, then retry AI fitting for an image-based result.' }}</p>
 
 
 
@@ -16,13 +19,13 @@
             <h2 id="image-used-heading" class="room-label">Image used</h2>
             <div class="room-source-card">
                 <img src="{{ route('room-images.original', $roomImage) }}" alt="Uploaded room thumbnail">
-                <div><span>Original room</span><strong>Room {{ $roomImage->id }}</strong><small>{{ $roomImage->room_width_m ?: '?' }} × {{ $roomImage->room_depth_m ?: '?' }} m</small></div>
+                <div><span>Original room</span><strong>Room {{ $roomImage->id }}</strong><small>{{ $hasAiRoomFit ? 'AI image-based fit' : 'Local 2D estimate' }}</small></div>
             </div>
         </section>
 
         <ol class="comparison-steps">
             <li><span>1</span><div><strong>Before</strong><small>Your uploaded room remains the base scene.</small></div></li>
-            <li><span>2</span><div><strong>After</strong><small><span data-preview-name>{{ $selectedProduct?->name ?? 'The furniture' }}</span> is placed using its catalog image and dimensions.</small></div></li>
+            <li><span>2</span><div><strong>After</strong><small><span data-preview-name>{{ $selectedProduct?->name ?? 'The furniture' }}</span> is automatically placed and scaled to the detected space.</small></div></li>
         </ol>
 
         @if($selectedProduct)
@@ -82,6 +85,9 @@
         </div>
         <div class="preview-detection-row" data-preview-detections aria-live="polite"></div>
         <div class="room-preview-actions">
+                @if($roomImage->gemini_consent_at)
+                <button type="button" class="btn btn-outline-primary" data-preview-retry>Retry AI preview</button>
+                @endif
             <button type="button" class="btn btn-primary" data-preview-download>Download preview (PNG)</button>
             <form method="POST" action="{{ route('room.reanalyze',$roomImage) }}">@csrf<button class="btn btn-outline-secondary" type="submit">Try again</button></form>
             <a class="btn btn-outline-secondary" href="{{ route('preferences.edit',['room'=>$roomImage->id]) }}#room-preview">Upload another photo</a>

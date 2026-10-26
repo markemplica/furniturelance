@@ -28,6 +28,59 @@ class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_strict_preferences_and_chat_update_ranked_matches(): void
+    {
+        $user = User::factory()->create();
+        $cheap = $this->product(['price' => 15000]);
+        $this->product(['slug' => 'expensive', 'price' => 25000]);
+        $this->product(['slug' => 'wrong-wood', 'wood_type' => 'Mahogany', 'price' => 14000]);
+        $this->product(['slug' => 'wrong-style', 'style' => 'Traditional', 'price' => 14000]);
+        $this->product(['slug' => 'wrong-finish', 'varnish_finish' => 'Black', 'price' => 14000]);
+        $room = $this->room($user);
+        $preference = $user->preference()->create(['furniture_type' => 'Table', 'budget_min' => 0, 'budget_max' => 30000, 'wood_type' => 'Gmelina', 'style' => 'Modern', 'varnish_finish' => 'Natural']);
+        $recommendation = app(\App\Services\RecommendationService::class)->generate($user, $preference, $room, 'Table');
+        $this->assertCount(2, $recommendation->items);
+        $this->actingAs($user)->post(route('recommendations.chat', $recommendation), ['message' => 'below 20'])->assertRedirect(route('recommendations.show', $recommendation));
+        $this->assertSame([$cheap->id], $recommendation->items()->pluck('furniture_product_id')->all());
+        $this->assertSame('19999.99', $preference->fresh()->budget_max);
+        $this->assertSame('Gmelina', $preference->fresh()->wood_type);
+        $this->post(route('recommendations.chat', $recommendation), ['message' => 'below 10000'])->assertRedirect();
+        $this->assertSame(0, $recommendation->items()->count());
+        $this->get(route('recommendations.show', $recommendation))->assertOk()->assertSee('No exact matches')->assertSee('Ask FurniCraft')
+            ->assertSee('Closest suggestions')->assertSee('above your maximum budget');
+        $alternatives = app(\App\Services\RecommendationService::class)->closestSuggestions($preference->fresh(), 'Table');
+        $this->assertCount(3, $alternatives);
+        $this->assertSame($cheap->id, $alternatives->first()['product']->id);
+        $this->assertTrue($alternatives->every(fn ($row) => $row['product']->recommendationType() === 'Table' && count($row['differences']) > 0));
+        $this->assertSame('9999.99', $preference->fresh()->budget_max);
+        $this->assertStringContainsString('Closest alternatives', $recommendation->messages()->where('role', 'assistant')->latest('id')->first()->message);
+        $this->post(route('recommendations.chat', $recommendation), ['message' => 'budget ko 20k'])->assertRedirect();
+        $this->assertSame([$cheap->id], $recommendation->items()->pluck('furniture_product_id')->all());
+        $this->post(route('recommendations.chat', $recommendation), ['message' => 'gusto ko Mahogany'])->assertRedirect();
+        $this->assertSame('Mahogany', $preference->fresh()->wood_type);
+        $this->assertSame('Natural', $preference->fresh()->varnish_finish);
+        $this->assertSame(1, $recommendation->items()->count());
+        $this->actingAs(User::factory()->create())->post(route('recommendations.chat', $recommendation), ['message' => 'below 1'])->assertForbidden();
+        $this->assertSame('20000.00', $preference->fresh()->budget_max);
+    }
+
+    public function test_chat_filter_does_not_treat_material_questions_or_negations_as_selections(): void
+    {
+        $this->product();
+        $preference = new \App\Models\CustomerPreference(['budget_min' => 5000]);
+        $parser = app(\App\Services\ChatPreferenceFilter::class);
+        $this->assertSame([], $parser->parse('What is Gmelina?', $preference));
+        $this->assertSame([], $parser->parse('not Gmelina', $preference));
+        $this->assertSame(19.99, $parser->parse('below PHP 20', $preference)['updates']['budget_max']);
+        $this->assertSame(19999.99, $parser->parse('below 20k', $preference)['updates']['budget_max']);
+        $this->assertSame(['wood_type' => null], $parser->parse('any wood', $preference)['updates']);
+        $this->assertSame('Gmelina', $parser->parse('gusto ko ng Gmelina below 20k', $preference)['updates']['wood_type']);
+        $this->assertSame('Modern', $parser->parse('Modern style', $preference)['updates']['style']);
+        $this->assertSame('Natural', $parser->parse('finish: Natural', $preference)['updates']['varnish_finish']);
+        $this->assertSame('Table', $parser->parse('show me Table', $preference)['updates']['furniture_type']);
+        $this->assertSame([], $parser->parse('why would I choose Gmelina?', $preference));
+    }
+
     public function test_home_is_public_and_login_is_required_for_customer_features(): void
     {
         $product = $this->product();
@@ -95,19 +148,31 @@ class ExampleTest extends TestCase
     {
         $this->seed();
 
-        $this->assertSame(14, FurnitureProduct::where('image_path', 'like', 'catalog:%')->count());
+        $this->assertSame(25, FurnitureProduct::where('image_path', 'like', 'catalog:%')->count());
         $filenames = array_merge(array_map(fn ($number) => sprintf('drive-%02d.png', $number), range(1, 9)), ['catalog-console.png', 'catalog-3-pad.png', 'catalog-piano-with-s.png', 'catalog-605.png', 'catalog-channel.png']);
         foreach ($filenames as $filename) {
             $product = FurnitureProduct::where('image_path', 'catalog:'.$filename)->firstOrFail();
             $this->assertStringEndsWith('/images/catalog/'.$filename, $product->image_url);
         }
+        foreach (FurnitureProduct::all() as $product) {
+            $this->assertFileExists(public_path('images/catalog/'.substr($product->image_path, strlen('catalog:'))));
+        }
     }
 
     public function test_customer_can_register_and_admin_area_rejects_them(): void
     {
-        $this->post('/register', ['name' => 'Ana Customer', 'email' => 'ana@example.com', 'phone' => '09170000001', 'password' => 'secret123', 'password_confirmation' => 'secret123'])->assertRedirect('/catalog');
+        Notification::fake();
+        $this->post('/register', ['first_name' => 'Ana', 'last_name' => 'Customer', 'birthdate' => '2000-01-01', 'gender' => 'female', 'email' => 'ana@example.com', 'phone' => '09170000001', 'password' => 'secret123', 'password_confirmation' => 'secret123'])->assertRedirect(route('verification.notice'));
         $user = User::where('email', 'ana@example.com')->firstOrFail();
         $this->assertSame('customer', $user->role);
+        $this->assertGuest();
+        $this->assertFalse($user->is_active);
+        $this->assertNull($user->email_verified_at);
+        $notification = Notification::sent($user, \App\Notifications\EmailVerificationCodeNotification::class)->sole();
+        $this->post(route('verification.verify'), ['email' => $user->email, 'code' => $notification->code])->assertRedirect('/catalog');
+        $this->assertTrue($user->fresh()->is_active);
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        $user->refresh();
         $this->actingAs($user)->get('/admin')->assertForbidden();
     }
 
@@ -224,9 +289,9 @@ class ExampleTest extends TestCase
         $this->actingAs($user)->get('/room')->assertRedirect(route('preferences.edit').'#room-preview');
         $this->actingAs($user)->get(route('preferences.edit', ['room' => $room->id]))
             ->assertOk()
-            ->assertSee('Plan your room in two required steps')
+            ->assertSee('Plan your room.')
             ->assertSee('Browse and set your preferences')
-            ->assertSee('Choose a room and generate recommendations')
+            ->assertSee('Choose a room for automatic AI fitting.')
             ->assertSee('Generate <span data-saved-furniture-type>Table</span> recommendations', false)
             ->assertDontSee('Step 3 · AI-powered')
             ->assertSee('Selected')
@@ -244,7 +309,7 @@ class ExampleTest extends TestCase
             ->assertSee('Automatic 2D room preview')
             ->assertSee('Download preview (PNG)')
             ->assertSee('data-room-preview', false)
-            ->assertDontSee('role="slider"', false)
+            ->assertSee('role="slider"', false)
             ->assertSee('See', false);
         $this->actingAs($user)->get(route('room.visualize', ['roomImage' => $room, 'recommendation' => $recommendation->id, 'product' => $product->id]))
             ->assertOk()
@@ -405,7 +470,7 @@ class ExampleTest extends TestCase
 
         $this->assertSame('Sala Set', $recommendation->furniture_type);
         $this->assertSame($closest->id, $recommendation->items->first()->furniture_product_id);
-        $this->assertTrue($recommendedIds->contains($otherSalaSet->id));
+        $this->assertFalse($recommendedIds->contains($otherSalaSet->id));
         $this->assertFalse($recommendedIds->contains($inactiveSalaSet->id));
         $this->assertFalse($recommendedIds->contains($matchingTable->id));
         $this->assertTrue($recommendation->items->every(
@@ -602,7 +667,7 @@ class ExampleTest extends TestCase
 
         $this->assertSame(81.0, $placement['x_percent']);
         $this->assertSame('opening', $placement['surface']);
-        $this->assertTrue($placement['needs_confirmation']);
+        $this->assertFalse($placement['needs_confirmation']);
         $this->assertSame('opening-measurements-required', $placement['measurement_status']);
     }
 
@@ -707,7 +772,7 @@ class ExampleTest extends TestCase
         $this->assertSame('no-opening', $placement['validation_status']);
         $this->assertSame('placement-blocked', $placement['source']);
     }
-    public function test_placement_service_rejects_obstructed_zones_and_oversized_furniture(): void
+    public function test_placement_service_avoids_obstructions_and_keeps_visual_fit_advisory_for_oversized_furniture(): void
     {
         $product = $this->product([
             'name' => 'Validated Sala Set',
@@ -738,9 +803,10 @@ class ExampleTest extends TestCase
             'depth_cm' => 400,
         ]);
         $blocked = app(FurniturePlacementService::class)->forProduct($analysis, $oversized, 3.0, 3.0);
-        $this->assertFalse($blocked['renderable']);
-        $this->assertSame('does-not-fit', $blocked['validation_status']);
-        $this->assertSame(0.0, $blocked['score']);
+        $this->assertTrue($blocked['renderable']);
+        $this->assertSame('advisory', $blocked['validation_status']);
+        $this->assertSame('does-not-fit', $blocked['measurement_status']);
+        $this->assertNotEmpty($blocked['validation_messages']);
     }
 
     public function test_visualizing_a_legacy_room_reanalyzes_it_for_door_openings(): void
@@ -753,6 +819,14 @@ class ExampleTest extends TestCase
             'candidates' => [[
                 'content' => ['parts' => [['text' => json_encode([
                     'summary' => 'Room with a doorway on the right.',
+                    'vision_geometry' => [
+                        'image_quality' => ['usable' => true, 'issues' => []],
+                        'floor_polygon' => [[0, 0.55], [1, 0.55], [1, 1], [0, 1]],
+                        'walls' => [], 'openings' => [], 'horizon_y' => 0.38,
+                        'blocked_zones' => [], 'existing_furniture' => [], 'scale_clues' => [],
+                        'lighting' => ['brightness' => 0.7, 'warmth' => 0.5, 'light_from' => 'front'],
+                        'confidence' => 0.8,
+                    ],
                     'layout' => 'Clear floor with a right doorway.',
                     'lighting' => 'Bright.',
                     'constraints' => 'Keep the opening clear.',
@@ -779,17 +853,17 @@ class ExampleTest extends TestCase
         $this->actingAs($user)->get(route('room.visualize', ['roomImage' => $room, 'product' => $door->id]))
             ->assertOk()
             ->assertSee('data-placement-source="scene-opening"', false)
-            ->assertSee('data-placement-x="83.5"', false)
-            ->assertSee('data-placement-width="17"', false);
+            ->assertSee('data-initial-x="83.5"', false)
+            ->assertSee('data-initial-width="17"', false);
 
         $room->refresh();
-        $this->assertSame('Door', $room->analysis['analyzed_furniture_type']);
+        $this->assertSame('all catalog furniture', $room->analysis['analyzed_furniture_type']);
         $this->assertNotEmpty($room->analysis['openings']);
         $this->assertArrayHasKey('zone_analysis_attempted_at', $room->analysis);
         Http::assertSentCount(1);
     }
 
-    public function test_placement_service_marks_legacy_room_analysis_for_one_tap_confirmation(): void
+    public function test_placement_service_uses_advisory_automatic_fit_for_legacy_room_analysis(): void
     {
         $product = $this->product([
             'name' => 'Legacy Test Cabinet',
@@ -799,9 +873,10 @@ class ExampleTest extends TestCase
 
         $placement = app(FurniturePlacementService::class)->forProduct([], $product);
 
-        $this->assertSame(70.0, $placement['x_percent']);
+        $this->assertEquals(70.0, $placement['x_percent']);
         $this->assertSame('type-fallback', $placement['source']);
-        $this->assertTrue($placement['needs_confirmation']);
+        $this->assertFalse($placement['needs_confirmation']);
+        $this->assertSame('advisory', $placement['validation_status']);
     }
 
     public function test_door_without_a_detected_opening_is_not_shown_at_an_invented_position(): void
@@ -896,20 +971,46 @@ class ExampleTest extends TestCase
         $this->product();
         $this->actingAs($user)->post('/preferences', ['furniture_type' => 'Table', 'budget_min' => 5000, 'budget_max' => 40000]);
         $png = file_get_contents(base_path('tests/Fixtures/room-600.png'));
-        $response = $this->actingAs($user)->post('/room', ['room_image' => UploadedFile::fake()->createWithContent('room.png', $png), 'room_width_m' => 3.5, 'room_depth_m' => 4.2]);
+        $response = $this->actingAs($user)->post('/room', ['room_image' => UploadedFile::fake()->createWithContent('room.png', $png)]);
         $room = $user->roomImages()->firstOrFail();
         $response->assertRedirect(route('room.visualize', $room));
         $this->assertTrue(Storage::disk('local')->exists($room->image_path));
         $this->assertFalse(Storage::disk('public')->exists($room->image_path));
         $this->assertFalse($room->analysis['gemini_used']);
-        $this->assertSame('customer-provided', $room->analysis['dimension_confidence']);
-        $this->assertSame('3.50', $room->room_width_m);
-        $this->assertSame('4.20', $room->room_depth_m);
+        $this->assertSame('unavailable', $room->analysis['dimension_confidence']);
+        $this->assertNull($room->room_width_m);
+        $this->assertNull($room->room_depth_m);
+    }
+
+    public function test_invalid_ai_geometry_is_reported_as_ready_local_fallback(): void
+    {
+        config(['services.gemini.key' => 'test-key']);
+        Storage::fake('local');
+        Storage::fake('public');
+        Http::fake(['*' => Http::response(['candidates' => [[
+            'content' => ['parts' => [['text' => json_encode(['summary' => 'Missing geometry'])]]],
+        ]]])]);
+        $this->product();
+        $user = User::factory()->create();
+        $this->actingAs($user)->post('/preferences', ['furniture_type' => 'Table', 'budget_min' => 5000, 'budget_max' => 40000])->assertSessionHasNoErrors();
+        $this->post('/room', [
+            'room_image' => UploadedFile::fake()->createWithContent('invalid-geometry.png', file_get_contents(base_path('tests/Fixtures/room-600.png'))),
+            'gemini_consent' => true,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $room = $user->roomImages()->firstOrFail();
+        $this->assertSame('fallback', $room->analysis_status);
+        $this->assertFalse($room->analysis['gemini_used']);
+        $this->assertStringContainsString('did not return usable room geometry', $room->analysis_error);
+        $this->getJson(route('room.analysis-status', $room))->assertOk()->assertJson(['status' => 'fallback', 'ready' => true]);
+        Http::assertSentCount(2);
     }
 
     public function test_room_analysis_is_queued_reported_and_can_be_retried_without_another_upload(): void
     {
+        config(['services.gemini.key' => 'test-key']);
         Queue::fake();
+        Storage::fake('local');
         Storage::fake('public');
         $user = User::factory()->create();
         $this->product();
@@ -918,13 +1019,14 @@ class ExampleTest extends TestCase
 
         $this->actingAs($user)->post('/room', [
             'room_image' => UploadedFile::fake()->createWithContent('queued-room.png', $png),
+            'gemini_consent' => true,
             'room_width_m' => 3.5,
             'room_depth_m' => 4.2,
         ])->assertRedirect();
 
         $room = $user->roomImages()->firstOrFail();
         $this->assertSame('queued', $room->analysis_status);
-        Queue::assertPushed(AnalyzeRoomImage::class, fn (AnalyzeRoomImage $job) => $job->roomImageId === $room->id && $job->furnitureType === 'Table');
+        Queue::assertPushed(AnalyzeRoomImage::class, fn (AnalyzeRoomImage $job) => $job->roomImageId === $room->id && $job->furnitureType === 'all catalog furniture');
         $this->actingAs($user)->getJson(route('room.analysis-status', $room))
             ->assertOk()
             ->assertJson(['status' => 'queued', 'ready' => false]);
@@ -937,7 +1039,7 @@ class ExampleTest extends TestCase
         Queue::assertPushed(AnalyzeRoomImage::class, 2);
     }
 
-    public function test_preferences_and_room_are_required_before_recommendations(): void
+    public function test_preferences_are_required_but_room_is_optional_before_recommendations(): void
     {
         Storage::fake('public');
         $user = User::factory()->create();
@@ -955,7 +1057,10 @@ class ExampleTest extends TestCase
 
         $this->actingAs($user)->post('/preferences', ['furniture_type' => 'Table', 'budget_min' => 5000, 'budget_max' => 40000]);
         $this->actingAs($user)->post('/recommendations', [])
-            ->assertSessionHasErrors('room_image_id');
+            ->assertRedirect()->assertSessionHasNoErrors();
+        $recommendation = $user->recommendations()->latest('id')->firstOrFail();
+        $this->assertNull($recommendation->room_image_id);
+        $this->get(route('recommendations.show', $recommendation))->assertOk();
     }
 
     public function test_admin_approval_sends_one_item_readiness_notification_and_logs_it(): void
@@ -977,9 +1082,9 @@ class ExampleTest extends TestCase
                 && str_contains($message, 'approved your FurniCraft reservation request')
                 && str_contains($message, 'FC-TEST-001')
                 && str_contains($message, $product->name)
-                && str_contains($message, 'Lingayen branch')
+                && str_contains($message, 'Selected shop: Lingayen')
                 && str_contains($message, 'does not guarantee that the item is physically in stock')
-                && str_contains($message, 'Contact the Lingayen branch before visiting');
+                && str_contains($message, 'Contact Lance Furniture Shop before visiting');
         });
 
         $log = NotificationLog::where('type', 'reservation_confirmed')->firstOrFail();
@@ -1001,7 +1106,57 @@ class ExampleTest extends TestCase
         $record = PasswordResetCode::firstOrFail();
         $this->assertFalse((bool) preg_match('/^\d{6}$/', $record->code_hash));
         Notification::assertSentTo($user, PasswordResetCodeNotification::class, 1);
-        $this->post('/forgot-password', ['email' => $user->email])->assertSessionHasErrors('email');
+        $this->post('/forgot-password', ['email' => $user->email])->assertRedirect('/reset-password')->assertSessionHas('warning');
+        Notification::assertSentTo($user, PasswordResetCodeNotification::class, 1);
+        $this->assertDatabaseCount('password_reset_codes', 1);
+    }
+
+    public function test_password_reset_requires_code_verification_before_showing_password_fields(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'staged-reset@example.com']);
+        $this->post(route('password.email'), ['email' => $user->email])->assertRedirect(route('password.reset'));
+        $code = Notification::sent($user, PasswordResetCodeNotification::class)->first()->code;
+
+        $this->get(route('password.reset'))->assertOk()
+            ->assertSee('Verify your reset code')->assertSee('Verify code')
+            ->assertDontSee('New password');
+
+        $this->post(route('password.verify'), ['email' => $user->email, 'code' => '000000'])
+            ->assertRedirect(route('password.reset'))->assertSessionHasErrors('code');
+        $this->get(route('password.reset'))->assertDontSee('New password');
+
+        $this->post(route('password.verify'), ['email' => $user->email, 'code' => $code])
+            ->assertRedirect(route('password.reset'))->assertSessionHas('password_reset_verified_email', $user->email);
+        $this->get(route('password.reset'))->assertOk()
+            ->assertSee('Choose a new password')->assertSee('name="password"', false)
+            ->assertDontSee('6-digit code');
+
+        $this->post(route('password.update'), [
+            'email' => $user->email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ])->assertRedirect(route('login'));
+        $this->assertTrue(Hash::check('new-password-123', $user->fresh()->password));
+        $this->assertNotNull(PasswordResetCode::firstOrFail()->used_at);
+    }
+
+    public function test_password_reset_cannot_skip_code_verification(): void
+    {
+        $user = User::factory()->create(['email' => 'skip-reset@example.com']);
+        PasswordResetCode::create([
+            'email' => $user->email,
+            'code_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        $this->withSession(['reset_email' => $user->email])->post(route('password.update'), [
+            'email' => $user->email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ])->assertRedirect(route('password.reset'))->assertSessionHasErrors('code');
+
+        $this->assertFalse(Hash::check('new-password-123', $user->fresh()->password));
     }
 
     private function room(User $user, array $overrides = []): RoomImage
@@ -1033,3 +1188,4 @@ class ExampleTest extends TestCase
         ], $overrides));
     }
 }
+

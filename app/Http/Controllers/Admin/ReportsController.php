@@ -10,6 +10,8 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class ReportsController extends Controller
 {
@@ -35,6 +37,23 @@ class ReportsController extends Controller
         [$headers, $fields] = $this->columns($report);
         $query = $this->reportQuery($report, $filters);
 
+        if (($filters['format'] ?? 'csv') === 'pdf') {
+            $options = new Options();
+            $options->set('isRemoteEnabled', false);
+            $pdf = new Dompdf($options);
+            $pdf->loadHtml(view('admin.reports.pdf', [
+                'report' => $report, 'filters' => $filters, 'headers' => $headers,
+                'rows' => $query->get()->map(fn ($record) => $this->rowValues($record, $fields)),
+            ])->render());
+            $pdf->setPaper('a3', 'landscape');
+            $pdf->render();
+
+            return response($pdf->output(), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="'.str_replace('.csv', '.pdf', $filename).'"',
+            ]);
+        }
+
         return response()->streamDownload(function () use ($query, $headers, $fields): void {
             $stream = fopen('php://output', 'w');
             fputcsv($stream, $headers);
@@ -52,9 +71,10 @@ class ReportsController extends Controller
     {
         return $request->validate([
             'report' => ['nullable', Rule::in(['reservations', 'recommendations', 'customers', 'furniture'])],
+            'format' => ['nullable', Rule::in(['csv', 'pdf'])],
+            'q' => ['nullable', 'string', 'max:200'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
-            'branch' => ['nullable', Rule::in(config('furnicraft.branches'))],
         ]);
     }
 
@@ -69,6 +89,27 @@ class ReportsController extends Controller
             'furniture' => FurnitureProduct::query()->withCount(['views', 'favorites', 'reservations']),
             default => Reservation::query()->with(['user:id,name,email', 'product:id,name,category']),
         };
+
+        if (trim($filters['q'] ?? '') !== '') {
+            $term = '%'.trim($filters['q']).'%';
+            $columns = match ($report) {
+                'customers' => ['name', 'email', 'phone'],
+                'furniture' => ['name', 'category', 'wood_type', 'varnish_finish', 'style'],
+                'recommendations' => ['id', 'furniture_type', 'algorithm_version'],
+                default => ['reference', 'status', 'notes'],
+            };
+            $query->where(function (Builder $search) use ($columns, $report, $term) {
+                foreach ($columns as $column) {
+                    $search->orWhere($column, 'like', $term);
+                }
+                if (in_array($report, ['reservations', 'recommendations'], true)) {
+                    $search->orWhereHas('user', fn (Builder $user) => $user->where('name', 'like', $term)->orWhere('email', 'like', $term));
+                }
+                if ($report === 'reservations') {
+                    $search->orWhereHas('product', fn (Builder $product) => $product->where('name', 'like', $term)->orWhere('category', 'like', $term));
+                }
+            });
+        }
 
         $dateColumn = match ($report) {
             'customers' => 'users.created_at',
@@ -92,7 +133,7 @@ class ReportsController extends Controller
 
     private function reservationBranchStats(array $filters)
     {
-        return Reservation::query()
+        return $this->reportQuery('reservations', $filters)->reorder()
             ->select('branch')
             ->selectRaw('COUNT(*) as reservation_count')
             ->selectRaw("SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed_count")

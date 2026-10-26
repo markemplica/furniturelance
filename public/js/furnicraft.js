@@ -1,4 +1,159 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const reportForm = document.querySelector('[data-report-filters]');
+    if (reportForm) {
+        const input = reportForm.querySelector('[data-report-search]');
+        const results = document.querySelector('[data-report-results]');
+        const error = reportForm.querySelector('[data-report-search-error]');
+        let timer;
+        let pending;
+        input.addEventListener('input', () => {
+            clearTimeout(timer);
+            pending?.abort();
+            timer = setTimeout(async () => {
+                const controller = new AbortController();
+                pending = controller;
+                const url = new URL(reportForm.action);
+                url.search = new URLSearchParams(new FormData(reportForm)).toString();
+                results.setAttribute('aria-busy', 'true');
+                error.hidden = true;
+                try {
+                    const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'text/html' } });
+                    if (!response.ok || response.redirected) throw new Error('Search unavailable');
+                    const document = new DOMParser().parseFromString(await response.text(), 'text/html');
+                    const updated = document.querySelector('[data-report-results]');
+                    if (!updated) throw new Error('Search unavailable');
+                    if (controller.signal.aborted) return;
+                    results.innerHTML = updated.innerHTML;
+                    history.replaceState(null, '', url);
+                } catch (failure) {
+                    if (failure.name !== 'AbortError') {
+                        error.textContent = 'Search is temporarily unavailable. Submit the search form to try again.';
+                        error.hidden = false;
+                    }
+                } finally {
+                    if (pending === controller) results.removeAttribute('aria-busy');
+                }
+            }, 300);
+        });
+    }
+    document.querySelectorAll('[data-favorite-form]').forEach((form) => {
+        const button = form.querySelector('button[type="submit"]');
+        const message = document.querySelector('[data-favorite-message]');
+        let saving = false;
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (saving) return;
+            saving = true;
+            button.disabled = true;
+            const previousText = button.textContent;
+            button.textContent = 'Saving…';
+            if (message) message.hidden = true;
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST', body: new FormData(form),
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || typeof data.saved !== 'boolean') {
+                    throw new Error([401, 419].includes(response.status) || response.redirected
+                        ? 'Your session expired. Please sign in again.'
+                        : 'Unable to update favorites. Please try again.');
+                }
+                button.textContent = data.saved ? 'Remove from favorites' : 'Save to favorites';
+                button.classList.toggle('btn-dark', data.saved);
+                button.classList.toggle('btn-outline-dark', !data.saved);
+                button.setAttribute('aria-pressed', String(data.saved));
+                if (message) {
+                    message.className = 'small text-success';
+                    message.textContent = data.saved ? 'Saved to your favorites.' : 'Removed from your favorites.';
+                    message.hidden = false;
+                }
+            } catch (error) {
+                button.textContent = previousText;
+                if (message) {
+                    message.className = 'small text-danger';
+                    message.textContent = error.message || 'Connection failed. Please try again.';
+                    message.hidden = false;
+                }
+            } finally {
+                saving = false;
+                button.disabled = false;
+            }
+        });
+    });
+    document.querySelectorAll('[data-profile-dialog-open]').forEach((button) => {
+        const dialog = document.getElementById(button.dataset.profileDialogOpen);
+        if (!dialog) return;
+        button.addEventListener('click', () => dialog.showModal());
+        dialog.querySelectorAll('[data-profile-dialog-close]').forEach((closeButton) => {
+            closeButton.addEventListener('click', () => dialog.close());
+        });
+        dialog.addEventListener('close', () => button.focus());
+        if (dialog.hasAttribute('data-open-on-load')) dialog.showModal();
+    });
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        const input = document.getElementById(button.getAttribute('aria-controls'));
+        if (!input) return;
+        button.addEventListener('click', () => {
+            const visible = input.type === 'password';
+            input.type = visible ? 'text' : 'password';
+            button.setAttribute('aria-pressed', String(visible));
+            button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+            button.title = visible ? 'Hide password' : 'Show password';
+            button.querySelector('[data-password-slash]').style.display = visible ? '' : 'none';
+        });
+    });
+    const reservationDialog = document.querySelector('#reservation-dialog');
+    if (reservationDialog) {
+        const opener = document.querySelector('[data-reservation-open]');
+        const form = reservationDialog.querySelector('[data-reservation-form]');
+        const message = reservationDialog.querySelector('[data-reservation-message]');
+        const done = reservationDialog.querySelector('[data-reservation-done]');
+        done?.querySelector('button').addEventListener('click', () => reservationDialog.close());
+        let sending = false;
+        let submitted = false;
+        opener.addEventListener('click', () => reservationDialog.showModal());
+        reservationDialog.querySelector('[data-reservation-close]').addEventListener('click', () => reservationDialog.close());
+        reservationDialog.addEventListener('close', () => opener.focus());
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (sending || submitted) return;
+            sending = true;
+            const button = form.querySelector('button[type="submit"]');
+            button.disabled = true;
+            button.textContent = 'Sending request…';
+            message.hidden = true;
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST', body: new FormData(form),
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const errors = Object.values(data.errors || {}).flat();
+                    throw new Error(errors.join(' ') || (response.status === 419 || response.status === 401
+                        ? 'Your session expired. Sign in again before submitting.'
+                        : data.message || 'Unable to submit. Please try again.'));
+                }
+                submitted = true;
+                if (done) done.hidden = false;
+                form.hidden = true;
+                form.classList.remove('vstack');
+                opener.textContent = 'View request confirmation';
+                message.className = 'alert alert-success';
+                message.textContent = data.message;
+            } catch (error) {
+                message.className = 'alert alert-danger';
+                message.textContent = error.message || 'Connection failed. Please try again.';
+            } finally {
+                sending = false;
+                button.disabled = submitted;
+                button.textContent = 'Send reservation request';
+                message.hidden = false;
+                message.focus();
+            }
+        });
+    }
     const roomPhotoInput = document.querySelector('[data-room-photo-input]');
     if (roomPhotoInput) {
         const uploadForm = roomPhotoInput.closest('form');
@@ -63,9 +218,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 showRetake('This photo could not be checked. Please choose another photo.');
             }
         });
+        const consent = uploadForm?.querySelector('[name="gemini_consent"]');
+        const choice = document.createElement('dialog');
+        choice.className = 'reservation-dialog';
+        choice.setAttribute('aria-labelledby', 'upload-ai-choice-title');
+        choice.innerHTML = '<h2 class="h4" id="upload-ai-choice-title">Enable AI analysis?</h2><p>Enable AI to send this room photo to Google Gemini for automatic analysis and previews. Continue without AI to use local guidance without sending the photo to Gemini.</p><div class="d-flex flex-wrap gap-2"><button type="button" class="btn btn-primary" data-enable-ai>Enable AI</button><button type="button" class="btn btn-outline-dark" data-without-ai>Continue without AI</button><button type="button" class="btn btn-link" data-cancel-upload>Cancel</button></div>';
+        document.body.append(choice);
+        let continueLocally = false;
+        choice.querySelector('[data-enable-ai]').addEventListener('click', () => {
+            if (consent) consent.checked = true;
+            choice.close();
+            uploadForm.requestSubmit();
+        });
+        choice.querySelector('[data-without-ai]').addEventListener('click', () => {
+            if (consent) consent.checked = false;
+            continueLocally = true;
+            choice.close();
+            uploadForm.requestSubmit();
+            continueLocally = false;
+        });
+        choice.querySelector('[data-cancel-upload]').addEventListener('click', () => choice.close());
+        choice.addEventListener('close', () => uploadButton?.focus());
         uploadForm?.addEventListener('submit', (event) => {
             if (!photoAccepted || qualityRejected) { event.preventDefault(); if (!roomPhotoInput.files?.length) roomPhotoInput.click(); return; }
-            if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = 'Uploading · Analyzing room…'; }
+            if (consent && !consent.checked && !continueLocally) {
+                event.preventDefault();
+                if (!choice.open) choice.showModal();
+                return;
+            }
+            if (uploadButton) { uploadButton.disabled = true; uploadButton.textContent = consent?.checked ? 'Uploading · Analyzing room…' : 'Uploading · Preparing local preview…'; }
         });
     }
     const preferencesForm = document.querySelector('[data-preferences-form]');
@@ -162,7 +343,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const roomPicker = document.querySelector('#room_image_id');
                 const generateButton = document.querySelector('[data-generate-recommendations]');
-                if (generateButton) generateButton.disabled = !roomPicker?.value;
+                if (generateButton) generateButton.disabled = false;
+                const skipRoom = document.querySelector('[data-skip-room]');
+                if (skipRoom) skipRoom.disabled = false;
                 savedSnapshot = snapshot();
                 savedInPlace = true;
             } catch (error) {
@@ -273,11 +456,77 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const roomOptions = [...document.querySelectorAll('[data-room-option]')];
-    const roomPicker = roomOptions.length ? document.querySelector('#room_image_id') : null;
+    const deleteDialog = document.createElement('dialog');
+    deleteDialog.className = 'reservation-dialog';
+    deleteDialog.setAttribute('aria-labelledby', 'delete-room-title');
+    deleteDialog.setAttribute('aria-describedby', 'delete-room-description');
+    deleteDialog.innerHTML = '<h2 class="h4" id="delete-room-title">Delete this room photo?</h2><p id="delete-room-description">This will delete the room photo and its generated previews. This cannot be undone.</p><div class="d-flex flex-wrap justify-content-end gap-2"><button type="button" class="btn btn-outline-dark" data-cancel-delete autofocus>Cancel</button><button type="button" class="btn btn-danger" data-confirm-delete>Yes, delete photo</button></div>';
+    document.body.append(deleteDialog);
+    let resolveDelete = null;
+    deleteDialog.querySelector('[data-cancel-delete]').addEventListener('click', () => deleteDialog.close('cancel'));
+    deleteDialog.querySelector('[data-confirm-delete]').addEventListener('click', () => deleteDialog.close('delete'));
+    deleteDialog.addEventListener('close', () => {
+        resolveDelete?.(deleteDialog.returnValue === 'delete');
+        resolveDelete = null;
+    });
+    const confirmRoomDeletion = () => new Promise((resolve) => {
+        resolveDelete = resolve;
+        deleteDialog.returnValue = 'cancel';
+        deleteDialog.showModal();
+    });
+    document.querySelectorAll('[data-delete-room]').forEach((form) => {
+        const status = document.createElement('p');
+        status.className = 'small mt-2 mb-0';
+        status.setAttribute('role', 'status');
+        form.append(status);
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const button = form.querySelector('button[type="submit"]');
+            if (button.disabled || deleteDialog.open) return;
+            if (!await confirmRoomDeletion()) { button.focus(); return; }
+            button.disabled = true;
+            button.textContent = 'Deleting…';
+            status.textContent = '';
+            try {
+                const response = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(data.message || 'Could not delete this photo. Please try again.');
+                const card = form.closest('[data-room-option]');
+                const container = card.parentElement;
+                const wasSelected = roomPicker?.value === card.dataset.roomId;
+                roomOptions.splice(roomOptions.indexOf(card), 1);
+                card.remove();
+                if (wasSelected) {
+                    roomPicker.value = '';
+                    if (generateRecommendations) generateRecommendations.disabled = false;
+                    if (roomStepState) roomStepState.hidden = true;
+                    if (selectedRoomLabel) selectedRoomLabel.textContent = 'No room selected. Recommendations will use your saved preferences.';
+                }
+                if (roomSelectionStatus) roomSelectionStatus.textContent = data.message;
+                if (!roomOptions.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.textContent = 'No room photos yet. Upload a room photo to generate recommendations.';
+                    container.append(empty);
+                }
+                (roomOptions[0] || document.querySelector('[data-room-photo-input]'))?.focus();
+            } catch (error) {
+                status.textContent = error.message;
+                status.classList.add('text-danger');
+                button.disabled = false;
+                button.textContent = 'Delete photo';
+            }
+        });
+    });
+    const roomPicker = document.querySelector('#room_image_id');
     const roomSelectionStatus = document.querySelector('[data-room-selection-status]');
     const roomStepState = document.querySelector('[data-room-step-state]');
     const selectedRoomLabel = document.querySelector('[data-selected-room-label]');
     const generateRecommendations = document.querySelector('[data-generate-recommendations]');
+    document.querySelector('[data-skip-room]')?.addEventListener('click', () => {
+        roomPicker.value = '';
+        document.querySelector('#recommendation-form').requestSubmit();
+    });
 
     if (roomOptions.length && roomPicker) {
         const selectRoom = (selectedOption, announce = true) => {
@@ -331,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const labels = { queued: 'Room analysis queued', processing: 'Analyzing room image', retrying: 'AI temporarily unavailable · retrying', completed: 'AI analyzed', fallback: 'Local guidance', failed: 'Needs retry' };
         const poll = async () => {
             await Promise.all(analysisWatches.map(async (element) => {
+                if (!element.isConnected) return;
                 const current = element.dataset.roomAnalysisCurrent || (element.dataset.roomReady === 'true' ? 'completed' : 'queued');
                 if (!activeAnalysisStatuses.includes(current)) return;
                 try {
@@ -338,6 +588,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!response.ok) return;
                     const payload = await response.json();
                     element.dataset.roomAnalysisCurrent = payload.status;
+                    element.dataset.roomReady = String(Boolean(payload.ready));
+                    if (roomPicker && element.dataset.roomId === roomPicker.value) {
+                        roomPicker.dispatchEvent(new Event('change'));
+                    }
                     element.querySelector('[data-room-analysis-label]')?.replaceChildren(document.createTextNode(labels[payload.status] || payload.status));
                     const message = element.querySelector('[data-room-analysis-message]');
                     if (message) message.textContent = payload.message || (payload.ready ? 'Room analysis is ready.' : '');

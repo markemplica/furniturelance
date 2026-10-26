@@ -10,7 +10,7 @@ class PreferenceController extends Controller
 {
     public function edit(Request $request)
     {
-        $preference = $request->user()->preference;
+        $preference = $request->user()->preference()->first();
         $preferenceComplete = filled($preference?->furniture_type);
         $styles = FurnitureProduct::where('status', 'active')->distinct()->orderBy('style')->pluck('style');
         $woodTypes = FurnitureProduct::where('status', 'active')->distinct()->orderBy('wood_type')->pluck('wood_type');
@@ -24,6 +24,11 @@ class PreferenceController extends Controller
 
     public function update(Request $request)
     {
+        if ($request->has('budget_range')) {
+            $range = $request->validate(['budget_range' => ['required', 'string', 'regex:/^\d+(?:\.\d{1,2})?-\d+(?:\.\d{1,2})?$/']]);
+            [$minimum, $maximum] = explode('-', $range['budget_range']);
+            $request->merge(['budget_min' => $minimum, 'budget_max' => $maximum]);
+        }
         $furnitureTypes = FurnitureProduct::recommendationTypes();
         $data = $request->validate([
             'furniture_type' => ['required', 'string', Rule::in($furnitureTypes->all())],
@@ -54,6 +59,6 @@ class PreferenceController extends Controller
 
         return redirect()
             ->to(route('preferences.edit').'#room-preview')
-            ->with('success', 'Preferences saved. Next, upload a room image for space analysis.');
+            ->with('success', 'Preferences saved. Generate recommendations or add an optional room photo.');
     }
 }

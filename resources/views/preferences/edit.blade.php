@@ -5,8 +5,8 @@
 <header class="page-heading">
     <div>
         <p class="section-kicker">Guided customer workflow</p>
-        <h1>Plan your room in two required steps.</h1>
-        <p>Choose exactly what furniture you want, then upload or select a room and generate matching recommendations.</p>
+        <h1>Plan your room.</h1>
+        <p>Save your furniture preferences to generate recommendations. Add a room photo for a room preview if you wish.</p>
     </div>
     <a class="btn btn-outline-dark" href="{{ route('recommendations.index') }}">Past recommendations</a>
 </header>
@@ -31,8 +31,21 @@
         <div class="alert fc-alert mb-4" role="status" aria-live="polite" data-preferences-status hidden></div>
         <div class="row g-4">
             <div class="col-md-4"><label class="form-label" for="furniture_type">Furniture type</label><select class="form-select" id="furniture_type" name="furniture_type" required><option value="">Choose furniture</option>@foreach($furnitureTypes as $type)<option value="{{ $type }}" @selected(old('furniture_type',$preference?->furniture_type)===$type)>{{ $type }}</option>@endforeach</select><div class="form-text">Recommendations will only include this type.</div></div>
-            <div class="col-md-4"><label class="form-label" for="budget_min">Minimum budget PHP</label><input class="form-control" id="budget_min" type="number" min="0" step="100" name="budget_min" value="{{ old('budget_min',$preference?->budget_min ?? 5000) }}" required></div>
-            <div class="col-md-4"><label class="form-label" for="budget_max">Maximum budget PHP</label><input class="form-control" id="budget_max" type="number" min="1" step="100" name="budget_max" value="{{ old('budget_max',$preference?->budget_max ?? 50000) }}" required></div>
+            <?php
+                $budgetRanges = [];
+                for ($upper = 10000; $upper <= 100000; $upper += 10000) {
+                    $lower = $upper === 10000 ? 1000 : $upper - 9999;
+                    $budgetRanges[$lower.'-'.$upper] = 'PHP '.number_format($lower).' – '.number_format($upper);
+                }
+                $budgetRanges['100001-500000'] = 'PHP 100,001 – 500,000';
+                $savedMinimum = old('budget_min', $preference?->budget_min);
+                $savedMaximum = old('budget_max', $preference?->budget_max);
+                $selectedBudget = old('budget_range', $savedMinimum !== null && $savedMaximum !== null ? (float) $savedMinimum.'-'.(float) $savedMaximum : '');
+                if ($selectedBudget && !isset($budgetRanges[$selectedBudget]) && $savedMinimum !== null && $savedMaximum !== null) {
+                    $budgetRanges[$selectedBudget] = 'PHP '.number_format($savedMinimum, 2).' – '.number_format($savedMaximum, 2).' (saved budget)';
+                }
+            ?>
+            <div class="col-md-8"><label class="form-label" for="budget_range">Budget range</label><select class="form-select" id="budget_range" name="budget_range" required><option value="">Choose your budget</option>@foreach($budgetRanges as $value => $label)<option value="{{ $value }}" @selected($selectedBudget === $value)>{{ $label }}</option>@endforeach</select></div>
             <div class="col-md-4"><label class="form-label" for="style">Furniture style</label><select class="form-select" id="style" name="style"><option value="">Open to any style</option>@foreach($styles as $style)<option @selected(old('style',$preference?->style)===$style)>{{ $style }}</option>@endforeach</select></div>
             <div class="col-md-4"><label class="form-label" for="wood_type">Wood type</label><select class="form-select" id="wood_type" name="wood_type"><option value="">Either wood</option>@foreach($woodTypes as $value)<option @selected(old('wood_type',$preference?->wood_type)===$value)>{{ $value }}</option>@endforeach</select></div>
             <div class="col-md-4"><label class="form-label" for="varnish_finish">Varnish finish</label><select class="form-select" id="varnish_finish" name="varnish_finish"><option value="">Any finish</option>@foreach($varnishFinishes as $value)<option @selected(old('varnish_finish',$preference?->varnish_finish)===$value)>{{ $value }}</option>@endforeach</select></div>
@@ -45,9 +58,9 @@
 <section id="room-preview" class="workflow-section" aria-labelledby="room-preview-heading">
     <div class="workflow-section-heading">
         <div>
-            <p class="section-kicker mb-1">Step 2 · Required</p>
-            <h2 id="room-preview-heading">Choose a room and generate recommendations.</h2>
-            <p>Upload or select a room. FurniCraft analyzes the space, then ranks only active <span data-saved-furniture-type-lower>{{ strtolower($preference?->furniture_type ?: 'furniture') }}</span> matches closest to your saved preferences.</p>
+            <p class="section-kicker mb-1">Step 2 · Optional</p>
+            <h2 id="room-preview-heading">Choose a room for automatic AI fitting.</h2>
+            <p>Upload a clear room photo. FurniCraft detects the usable space and perspective, then automatically positions and scales recommended <span data-saved-furniture-type-lower>{{ strtolower($preference?->furniture_type ?: 'furniture') }}</span> in the preview.</p>
         </div>
         <span class="workflow-state is-done" data-room-step-state @if(!$activeRoomId) hidden @endif>Room selected</span>
     </div>
@@ -65,24 +78,13 @@
                     <div>
                         <label class="form-label" for="room_image">Room photo</label>
                         <input class="form-control" id="room_image" type="file" name="room_image" data-room-photo-input accept="image/jpeg,image/png,image/webp" required>
-                        <div class="form-text">JPG, PNG, or WebP up to 8 MB. Photos must be at least 600 px on the longest side.</div>
+                        <div class="form-text">JPG, PNG, or WebP up to 8 MB. FurniCraft automatically analyzes the photo, chooses a clear placement area, and adjusts the preview scale. No room measurements are needed.</div>
                         <div class="small mt-2" data-room-photo-quality role="status" aria-live="polite"></div>
-                    <div class="row g-3">
-                        <div class="col-sm-6">
-                            <label class="form-label" for="room_width_m">Known room width (m) <span class="text-muted">optional</span></label>
-                            <input class="form-control" id="room_width_m" type="number" name="room_width_m" min="1" max="50" step="0.1" value="{{ old('room_width_m') }}" inputmode="decimal" aria-describedby="room-dimensions-help">
-                        </div>
-                        <div class="col-sm-6">
-                            <label class="form-label" for="room_depth_m">Known room depth (m) <span class="text-muted">optional</span></label>
-                            <input class="form-control" id="room_depth_m" type="number" name="room_depth_m" min="1" max="50" step="0.1" value="{{ old('room_depth_m') }}" inputmode="decimal" aria-describedby="room-dimensions-help">
-                        </div>
-                        <div class="col-12 form-text" id="room-dimensions-help">Enter measurements in meters (for example, 3 m = 300 cm). They take priority over estimates from the photo; leave both blank to use visual estimates when available.</div>
                     </div>
-                    </div>
+                    <label class="form-check panel room-photo-consent mb-0"><input class="form-check-input" type="checkbox" name="gemini_consent" value="1" @checked(old('gemini_consent'))><span class="form-check-label">Allow FurniCraft to send this room photo to Google Gemini for automatic AI analysis, placement, and preview fitting. <a href="{{ route('privacy-policy') }}" target="_blank" rel="noopener">Privacy details</a></span></label>
+                    @error('gemini_consent')<p class="text-danger small" role="alert">{{ $message }}</p>@enderror
                     <button class="btn btn-primary btn-lg" type="submit">Upload room photo</button>
                 </fieldset>
-                <label class="form-check panel room-photo-consent mb-0"><input class="form-check-input" type="checkbox" name="gemini_consent" value="1"><span class="form-check-label">Allow Google Gemini to analyze this photo and create previews. Without consent, local estimates are used. <a href="{{ route('privacy-policy') }}" target="_blank" rel="noopener">Privacy details</a></span></label>
-                <p class="small text-muted mb-0">Known measurements override visual estimates. Image-based measurements are approximate and may be unavailable for unclear photos or when AI analysis is not enabled. Room photos are stored privately, stripped of EXIF metadata, and retained for {{ (int) config('privacy.room_image_retention_days', 90) }} days unless deleted sooner.</p>
             </form>
         </div>
 
@@ -97,10 +99,10 @@
                     <img src="{{ route('room-images.original', $room) }}" alt="Uploaded room from {{ $room->created_at->format('M j, Y') }}" width="140" height="100" style="object-fit:cover">
                     <div class="flex-grow-1">
                         <div><strong>Room {{ $room->id }} · {{ $room->created_at->format('F j, Y · g:i A') }}</strong><span class="badge text-bg-primary ms-1" data-room-selected-badge @if(!$isSelectedRoom) hidden @endif>Selected</span><span class="badge text-bg-light ms-1" data-room-analysis-label>{{ $statusLabel }}</span></div>
-                        <p class="small text-muted mb-2">{{ $room->room_width_m ?: data_get($room->analysis,'estimated_width_m') ?: '?' }} × {{ $room->room_depth_m ?: data_get($room->analysis,'estimated_depth_m') ?: '?' }} m · {{ data_get($room->analysis,'dimension_confidence','unavailable') }} dimensions<span data-room-analysis-message>@if($room->analysis_error) · {{ $room->analysis_error }}@endif</span></p>
+                        <p class="small text-muted mb-2">Automatic image-based fit · <span data-room-analysis-message>{{ $room->analysis_error ?: (data_get($room->analysis, 'gemini_used') ? 'AI placement geometry is ready.' : 'Local placement guidance is ready.') }}</span></p>
                         <div class="d-flex flex-wrap gap-2">
                             
-                            <form method="POST" action="{{ route('room.destroy', $room) }}" onsubmit="return confirm('Delete this room photo and its generated previews?')">@csrf @method('DELETE')<button class="btn btn-sm btn-outline-danger" type="submit">Delete photo</button></form>
+                            <form method="POST" action="{{ route('room.destroy', $room) }}" data-delete-room>@csrf @method('DELETE')<button class="btn btn-sm btn-outline-danger" type="submit">Delete photo</button></form>
                             @unless(in_array($room->analysis_status, ['queued', 'processing', 'retrying'], true))
                                 <form method="POST" action="{{ route('room.reanalyze', $room) }}">@csrf<button class="btn btn-sm btn-outline-dark" type="submit">Re-analyze room</button></form>
                             @endunless
@@ -108,22 +110,22 @@
                     </div>
                 </article>
             @empty
-                <div class="empty-state"><h3>No analyzed room yet.</h3><p>A room image is required before FurniCraft can generate recommendations.</p></div>
+                <div class="empty-state"><h3>No analyzed room yet.</h3><p>You can generate recommendations using your saved preferences without a room photo.</p></div>
             @endforelse
         </div>
     </div>
 
     <form method="POST" action="{{ route('recommendations.store') }}" class="panel mt-4" id="recommendation-form">
         @csrf
-        <input type="hidden" id="room_image_id" name="room_image_id" value="{{ $activeRoomId ?: '' }}" required>
+        <input type="hidden" id="room_image_id" name="room_image_id" value="{{ $activeRoomId ?: '' }}">
         <div class="row g-3 align-items-center">
             <div class="col-lg">
                 <p class="section-kicker mb-1">AI-powered matching</p>
                 <h3 class="h4 mb-1">Generate <span data-saved-furniture-type>{{ $preference?->furniture_type ?: 'furniture' }}</span> recommendations</h3>
-                <p class="text-muted mb-0" data-selected-room-label>{{ $activeRoomId ? 'Room '.$activeRoomId.' selected.' : 'Click one of your analyzed rooms first.' }} Only active <span data-saved-furniture-type-lower>{{ strtolower($preference?->furniture_type ?: 'furniture') }}</span> products will be ranked by your budget, style, wood, finish, and room fit.</p>
+                <p class="text-muted mb-0" data-selected-room-label>{{ $activeRoomId ? 'Room '.$activeRoomId.' selected. AI will fit each preview to the detected space.' : 'No room selected. Recommendations will use your saved preferences.' }} Only active <span data-saved-furniture-type-lower>{{ strtolower($preference?->furniture_type ?: 'furniture') }}</span> products will be ranked by your budget, style, wood, finish, and room fit.</p>
             </div>
             <div class="col-lg-auto d-grid">
-                <button class="btn btn-primary btn-lg" type="submit" data-generate-recommendations @disabled(!$preferenceComplete || $rooms->isEmpty() || !$activeRoomId || !optional($rooms->firstWhere('id', $activeRoomId))->analysis_status || !in_array(optional($rooms->firstWhere('id', $activeRoomId))->analysis_status, ['completed','fallback'], true))>Generate recommendations</button>
+                <button class="btn btn-outline-dark mb-2" type="button" data-skip-room @disabled(!$preferenceComplete)>Continue without room photo</button><button class="btn btn-primary btn-lg" type="submit" data-generate-recommendations @disabled(!$preferenceComplete)>Generate recommendations</button>
             </div>
         </div>
     </form>

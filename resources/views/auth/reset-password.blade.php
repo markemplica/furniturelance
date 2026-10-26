@@ -2,7 +2,7 @@
 @section('title', 'Reset your password')
 @section('content')
 <div class="auth-layout compact">
-    <section class="auth-story">
+    <section class="auth-story reset-password-story">
         <a class="guest-brand" href="{{ route('login') }}"><span class="brand-mark">F</span> FurniCraft</a>
         <div>
             <p class="section-kicker">Account recovery</p>
@@ -11,29 +11,37 @@
         </div>
     </section>
     <section class="auth-panel">
-        <h2>Choose a new password</h2>
-        <p class="text-muted">Use the code sent to your email address.</p>
+        <h2>{{ $verified ? 'Choose a new password' : 'Verify your reset code' }}</h2>
+        <p class="text-muted">{{ $verified ? 'Your email code is verified. Set a new password to finish.' : 'Enter the six-digit code sent to your email. You can choose a new password after it is verified.' }}</p>
         @if(session('success')) <div class="alert alert-success fc-alert" role="status">{{ session('success') }}</div> @endif
         @if(session('warning')) <div class="alert alert-warning fc-alert" role="status">{{ session('warning') }}</div> @endif
         @if($errors->any())
             <div class="alert alert-danger fc-alert" role="alert"><strong>Please check the form.</strong><ul class="mb-0 mt-1">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
         @endif
-        <form id="reset-password-form" method="POST" action="{{ route('password.update') }}" class="vstack gap-3">
-            @csrf
-            <div><label class="form-label" for="email">Email address</label><input class="form-control" id="email" type="email" name="email" value="{{ old('email', $email) }}" required></div>
-            <div class="reset-code-row">
-                <div class="reset-code-field"><label class="form-label" for="code">6-digit code</label><input class="form-control code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div>
-                @if($email)
-                    <div class="reset-resend-control">
-                        <button class="btn btn-outline-primary" id="reset-resend-button" type="submit" form="reset-resend-form" aria-live="polite">Resend</button>
-                        <p class="small text-muted mb-0" id="reset-resend-countdown" role="status" aria-live="polite"></p>
-                    </div>
-                @endif
-            </div>
-            <div><label class="form-label" for="password">New password</label><input class="form-control" id="password" type="password" name="password" autocomplete="new-password" minlength="8" required></div>
-            <div><label class="form-label" for="password_confirmation">Confirm new password</label><input class="form-control" id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="8" required></div>
-            <button class="btn btn-primary btn-lg" type="submit">Change password</button>
-        </form>
+        @if($verified)
+            <form id="reset-password-form" method="POST" action="{{ route('password.update') }}" class="vstack gap-3">
+                @csrf
+                <input type="hidden" name="email" value="{{ $email }}">
+                <div><label class="form-label" for="password">New password</label><input class="form-control" id="password" type="password" name="password" autocomplete="new-password" minlength="8" required autofocus></div>
+                <div><label class="form-label" for="password_confirmation">Confirm new password</label><input class="form-control" id="password_confirmation" type="password" name="password_confirmation" autocomplete="new-password" minlength="8" required></div>
+                <button class="btn btn-primary btn-lg" type="submit">Change password</button>
+            </form>
+        @else
+            <form id="verify-reset-code-form" method="POST" action="{{ route('password.verify') }}" class="vstack gap-3">
+                @csrf
+                <div><label class="form-label" for="email">Email address</label><input class="form-control" id="email" type="email" name="email" value="{{ old('email', $email) }}" required {{ $email ? 'readonly' : '' }}></div>
+                <div class="reset-code-row">
+                    <div class="reset-code-field"><label class="form-label" for="code">6-digit code</label><input class="form-control code-input" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus></div>
+                    @if($email)
+                        <div class="reset-resend-control">
+                            <button class="btn btn-outline-primary" id="reset-resend-button" type="submit" form="reset-resend-form" aria-live="polite">Resend</button>
+                            <p class="small text-muted mb-0" id="reset-resend-countdown" role="status" aria-live="polite"></p>
+                        </div>
+                    @endif
+                </div>
+                <button class="btn btn-primary btn-lg" type="submit">Verify code</button>
+            </form>
+        @endif
         @if($email)
             <form method="POST" action="{{ route('password.resend') }}" id="reset-resend-form" class="d-none" data-resend-available-at="{{ $resendAvailableAt ?? '' }}">
                 @csrf

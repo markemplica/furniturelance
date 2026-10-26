@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#173f35">
+    <meta name="theme-color" content="#4a2e21">
     <title>@yield('title', 'FurniCraft') | Lance Furniture Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ asset('css/furnicraft.css') }}?v={{ filemtime(public_path('css/furnicraft.css')) }}" rel="stylesheet">
@@ -24,7 +24,6 @@
                     <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.reservations.*') ? 'active' : '' }}" href="{{ route('admin.reservations.index') }}">Reservations</a></li>
                     <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}" href="{{ route('admin.reports.index') }}">Reports</a></li>
                     <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.customers.*') ? 'active' : '' }}" href="{{ route('admin.customers.index') }}">Customers</a></li>
-                    <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.recommendation-evaluation') ? 'active' : '' }}" href="{{ route('admin.recommendation-evaluation') }}">Recommendation evaluation</a></li>
                     <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.privacy-audit') ? 'active' : '' }}" href="{{ route('admin.privacy-audit') }}">Privacy audit</a></li>
                 @else
                     <li class="nav-item"><a class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}">Home</a></li>
@@ -39,6 +38,7 @@
                         <li><span class="dropdown-item-text small text-muted">{{ auth()->user()->isAdmin() ? 'Administrator/Owner' : 'Customer' }}</span></li>
                         @if(! auth()->user()->isAdmin())
                             <li><a class="dropdown-item {{ request()->routeIs('profile.*') ? 'active' : '' }}" href="{{ route('profile.edit') }}">Profile settings</a></li>
+                            <li><a class="dropdown-item {{ request()->routeIs('favorites.*') ? 'active' : '' }}" href="{{ route('favorites.index') }}">Favorites</a></li>
                         @endif
                         <li><hr class="dropdown-divider"></li>
                         <li><form method="POST" action="{{ route('logout') }}">@csrf<button class="dropdown-item" type="submit">Sign out</button></form></li>
@@ -51,7 +51,7 @@
 @endauth
 
 @guest
-    @if(request()->routeIs('home', 'how-it-works'))
+    @if(request()->routeIs('home', 'how-it-works', 'catalog.*'))
 <nav class="navbar navbar-expand-lg navbar-light fc-navbar sticky-top" aria-label="Public navigation">
     <div class="container-xl">
         <a class="navbar-brand" href="{{ route('home') }}"><span class="brand-mark" aria-hidden="true">F</span><span>FurniCraft<small>Lance Furniture Shop</small></span></a>
@@ -73,7 +73,7 @@
     @endif
 @endguest
 
-<main id="main-content" class="{{ auth()->check() || request()->routeIs('home', 'how-it-works') ? 'page-shell' : 'guest-shell' }}">
+<main id="main-content" class="{{ auth()->check() || request()->routeIs('home', 'how-it-works', 'catalog.*') ? 'page-shell' : 'guest-shell' }}">
     <div class="container-xl">
         @unless(request()->routeIs('password.reset'))
             @if(session('success')) <div class="alert alert-success fc-alert" role="status">{{ session('success') }}</div> @endif
@@ -86,7 +86,7 @@
     </div>
 </main>
 
-@if(auth()->check() || request()->routeIs('home', 'how-it-works'))
+@if(auth()->check() || request()->routeIs('home', 'how-it-works', 'catalog.*'))
 <footer class="site-footer">
     <div class="container-xl site-footer-inner">
         <div><span class="footer-brand">FurniCraft</span><small>Intelligent furniture planning for Lance Furniture Shop.</small></div>
@@ -101,3 +101,4 @@
 @stack('scripts')
 </body>
 </html>
+

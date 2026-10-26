@@ -41,46 +41,33 @@
             </form>
         </section>
 
-        <section class="panel mt-4" aria-labelledby="password-heading">
-            <p class="section-kicker mb-1">Account security</p>
-            <h2 id="password-heading" class="h3">Change password</h2>
-            <p class="text-muted">Enter your current password before choosing a new password with at least eight characters.</p>
-
-            <form method="POST" action="{{ route('profile.password') }}" class="row g-3 mt-1">
-                @csrf
-                @method('PUT')
-                <div class="col-12">
-                    <label class="form-label" for="current_password">Current password</label>
-                    <input class="form-control @error('current_password') is-invalid @enderror" id="current_password" name="current_password" type="password" autocomplete="current-password" required>
-                    @error('current_password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="password">New password</label>
-                    <input class="form-control @error('password') is-invalid @enderror" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
-                    @error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="password_confirmation">Confirm new password</label>
-                    <input class="form-control" id="password_confirmation" name="password_confirmation" type="password" minlength="8" autocomplete="new-password" required>
-                </div>
-                <div class="col-12">
-                    <button class="btn btn-dark" type="submit">Change password</button>
-                </div>
-            </form>
+        <section class="panel mt-4 d-flex flex-wrap align-items-center gap-3" aria-label="Account security and data controls">
+            <button class="btn btn-dark" type="button" data-profile-dialog-open="change-password-dialog">Change password</button>
+            <button class="btn btn-outline-danger" type="button" data-profile-dialog-open="delete-account-dialog">Delete account</button>
         </section>
 
-        <section class="panel mt-4 border-danger" aria-labelledby="delete-account-heading">
-            <p class="section-kicker mb-1 text-danger">Data controls</p>
-            <h2 id="delete-account-heading" class="h3">Delete your account and data</h2>
+        <dialog class="reservation-dialog profile-action-dialog" id="change-password-dialog" aria-labelledby="password-heading" @if(old('account_action') === 'change-password' && ($errors->has('current_password') || $errors->has('password'))) data-open-on-load @endif>
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-2"><h2 id="password-heading" class="h3">Change password</h2><button class="btn-close" type="button" data-profile-dialog-close aria-label="Close"></button></div>
+            <p class="text-muted">Enter your current password before choosing a new password with at least eight characters.</p>
+            <form method="POST" action="{{ route('profile.password') }}" class="row g-3 mt-1">
+                @csrf @method('PUT')<input type="hidden" name="account_action" value="change-password">
+                <div class="col-12"><label class="form-label" for="current_password">Current password</label><input class="form-control @error('current_password') is-invalid @enderror" id="current_password" name="current_password" type="password" autocomplete="current-password" required>@error('current_password')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-md-6"><label class="form-label" for="password">New password</label><input class="form-control @error('password') is-invalid @enderror" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>@error('password')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-md-6"><label class="form-label" for="password_confirmation">Confirm new password</label><input class="form-control" id="password_confirmation" name="password_confirmation" type="password" minlength="8" autocomplete="new-password" required></div>
+                <div class="col-12 d-flex justify-content-end gap-2"><button class="btn btn-outline-secondary" type="button" data-profile-dialog-close>Cancel</button><button class="btn btn-dark" type="submit">Change password</button></div>
+            </form>
+        </dialog>
+
+        <dialog class="reservation-dialog profile-action-dialog border-danger" id="delete-account-dialog" aria-labelledby="delete-account-heading" @if(old('account_action') === 'delete-account' && ($errors->has('confirm_account_deletion') || $errors->has('current_password'))) data-open-on-load @endif>
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-2"><h2 id="delete-account-heading" class="h3">Delete your account and data</h2><button class="btn-close" type="button" data-profile-dialog-close aria-label="Close"></button></div>
             <p class="text-muted">This permanently deletes your profile, preferences, room photos, recommendations, favorites, and reservation history. Enter your password and type DELETE to confirm.</p>
             <form method="POST" action="{{ route('profile.destroy') }}" class="row g-3">
-                @csrf
-                @method('DELETE')
-                <div class="col-md-6"><label class="form-label" for="delete_current_password">Current password</label><input class="form-control" id="delete_current_password" name="current_password" type="password" autocomplete="current-password" required></div>
-                <div class="col-md-6"><label class="form-label" for="confirm_account_deletion">Type DELETE to confirm</label><input class="form-control" id="confirm_account_deletion" name="confirm_account_deletion" required></div>
-                <div class="col-12"><button class="btn btn-danger" type="submit">Permanently delete account</button></div>
+                @csrf @method('DELETE')<input type="hidden" name="account_action" value="delete-account">
+                <div class="col-md-6"><label class="form-label" for="delete_current_password">Current password</label><input class="form-control @error('current_password') is-invalid @enderror" id="delete_current_password" name="current_password" type="password" autocomplete="current-password" required>@error('current_password')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-md-6"><label class="form-label" for="confirm_account_deletion">Type DELETE to confirm</label><input class="form-control @error('confirm_account_deletion') is-invalid @enderror" id="confirm_account_deletion" name="confirm_account_deletion" required>@error('confirm_account_deletion')<div class="invalid-feedback">{{ $message }}</div>@enderror</div>
+                <div class="col-12 d-flex justify-content-end gap-2"><button class="btn btn-outline-secondary" type="button" data-profile-dialog-close>Cancel</button><button class="btn btn-danger" type="submit">Permanently delete account</button></div>
             </form>
-        </section>
+        </dialog>
     </div>
 
     <aside class="col-lg-4">

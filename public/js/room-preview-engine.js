@@ -357,15 +357,10 @@
                 const total = reliable.reduce((sum, entry) => sum + entry.reliability, 0);
                 if (total > 0) return reliable.reduce((sum, entry) => sum + entry.scale * entry.reliability, 0) / total;
             }
-            const roomWidth = Number(this.frame.dataset.roomWidth || 0);
-            if (roomWidth > 0) {
-                const visibleRoomWidth = this.floorWidthAt(y);
-                if (visibleRoomWidth > 0) return this.room.naturalWidth * visibleRoomWidth / (roomWidth * 100);
-                return this.room.naturalWidth * 0.72 / (roomWidth * 100);
-            }
-            // Approximate a typical phone-camera perspective; this fallback is deliberately low confidence.
-            const perspective = clamp((y - this.horizon) / (1 - this.horizon), 0.15, 1.2);
-            return imageHeight * 0.0020 * perspective;
+            // Use photo geometry rather than customer-entered room measurements.
+            const floorSpan = this.floorWidthAt(y) || 0.72;
+            const perspective = clamp((y - this.horizon) / (1 - this.horizon), 0.45, 1);
+            return this.room.naturalWidth * floorSpan / 400 * perspective;
         }
 
         openingRect(opening) {
@@ -426,9 +421,8 @@
             if (!relaxed && !pointInPolygon(x, y, this.floor)) return null;
             const pxPerCm = this.estimateScale(y);
             const expectedWidth = dims.width * pxPerCm * scaleFactor / this.room.naturalWidth;
-            const expectedHeight = dims.height * pxPerCm * scaleFactor / this.room.naturalHeight;
-            let width = Math.min(expectedWidth, expectedHeight * naturalAspect);
-            let height = width / naturalAspect;
+            let width = expectedWidth;
+            let height = width * (this.room.naturalWidth / this.room.naturalHeight) / naturalAspect;
             let fittedScale = scaleFactor;
             if (relaxed && (width > 0.9 || height > 0.88)) {
                 const fit = Math.min(0.9 / Math.max(width, 1e-6), 0.88 / Math.max(height, 1e-6), 1);
@@ -444,7 +438,7 @@
             if (!relaxed && this.blocked.some((shape) => polygonIntersectsRect(shape, rect))) return null;
             if (!relaxed && this.existing.some((box) => rectanglesOverlap(rect, box))) return null;
             const floor = bounds(this.floor);
-            const nearBackWall = floor ? 1 - clamp(Math.abs(y - (floor.minY + (floor.maxY - floor.minY) * 0.18)) / 0.5, 0, 1) : 0.35;
+            const nearBackWall = floor ? 1 - clamp(Math.abs(y - (floor.minY + (floor.maxY - floor.minY) * 0.48)) / 0.5, 0, 1) : 0.35;
             const centered = 1 - Math.abs(x - 0.5) * 1.2;
             const openArea = 1 - this.existing.length * 0.08;
             const doors = this.openings.filter((opening) => ['door', 'archway'].includes(String(opening.type || '').toLowerCase()) || /door|entry|entrance/i.test(String(opening.label || '')));
@@ -469,7 +463,7 @@
             const y = (box.minY + box.maxY) / 2;
             const pxPerCm = this.estimateScale(clamp(y, 0.1, 0.9));
             const width = Math.min(dims.width * pxPerCm / this.room.naturalWidth, (box.maxX - box.minX) * 0.7);
-            const height = width / aspect;
+            const height = width * (this.room.naturalWidth / this.room.naturalHeight) / aspect;
             const rect = { left: x - width / 2, right: x + width / 2, top: y - height / 2, bottom: y + height / 2 };
             const corners = [[rect.left, rect.top], [rect.right, rect.top], [rect.right, rect.bottom], [rect.left, rect.bottom]];
             if (!corners.every(([cx, cy]) => pointInPolygon(cx, cy, wall))) return null;
@@ -568,12 +562,14 @@
             const productId = Number(this.frame.dataset.productId || 0);
             if (!endpoint || !productId) return false;
 
+            const retry = this.retryAiPreview === true;
+            this.retryAiPreview = false;
             this.setProgress('Generating an AI-fitted room image');
             try {
                 const response = await fetch(endpoint, {
                     method: 'POST', credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this.frame.dataset.csrf, 'Accept': 'application/json' },
-                    body: JSON.stringify({ furniture_id: productId }),
+                    body: JSON.stringify({ furniture_id: productId, retry }),
                 });
                 if (!response.ok) return false;
                 let payload = await response.json();
@@ -598,12 +594,12 @@
                 this.context.drawImage(generated, 0, 0, size.width, size.height);
                 this.report(this.result);
                 const verified = payload.status === 'completed';
-                this.setStatus(verified ? 'AI visual preview ready' : 'Visual preview estimate ready', 'low');
+                this.setStatus(verified ? 'AI visual preview ready' : 'AI fitting unavailable — local estimate shown', 'low');
                 if (this.guidance) this.guidance.textContent = verified
                     ? 'The preview was generated from your room photo and the selected catalog item. Apparent size is an AI visual estimate.'
-                    : 'A visual preview is ready. AI validation was unavailable; treat the apparent size and placement as an estimate.';
+                    : (payload.message || 'AI fitting was unavailable, so a local 2D estimate is shown. Treat the apparent size and placement as an estimate.');
                 if (this.detections) {
-                    const badge = verified ? 'AI visual preview' : 'Visual estimate';
+                    const badge = verified ? 'AI visual preview' : 'Local estimate';
                     this.detections.innerHTML = `<span class="preview-badge is-rough">${badge}</span>`;
                 }
                 return true;
@@ -703,7 +699,16 @@
             engine.start();
             frame.roomPreviewEngine = engine;
         });
-        document.addEventListener('click', (event) => {
+        document.addEventListener('click', async (event) => {
+            const retryButton = event.target.closest('[data-preview-retry]');
+            if (retryButton) {
+                const engine = document.querySelector('[data-room-preview]')?.roomPreviewEngine;
+                if (!engine || retryButton.disabled) return;
+                retryButton.disabled = true;
+                engine.retryAiPreview = true;
+                try { await engine.start(); } finally { retryButton.disabled = false; }
+                return;
+            }
             const button = event.target.closest('[data-recommendation-preview]');
             if (!button) return;
             const frame = document.querySelector('[data-room-preview]');

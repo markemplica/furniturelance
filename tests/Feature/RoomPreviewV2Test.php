@@ -86,4 +86,44 @@ class RoomPreviewV2Test extends TestCase
         );
     }
 
+
+    public function test_complex_schema_rejection_retries_json_mode_without_losing_image_input(): void
+    {
+        config(['services.gemini.key' => 'test-key', 'services.gemini.model' => 'test-model']);
+        \Illuminate\Support\Facades\Http::fakeSequence()
+            ->push(['error' => ['message' => 'Invalid argument']], 400)
+            ->push(['candidates' => [['content' => ['parts' => [['text' => '{"ok":true}']]]]]], 200);
+        $method = new \ReflectionMethod(\App\Services\GeminiService::class, 'request');
+        $parts = [['text' => 'Analyze room'], ['inline_data' => ['mime_type' => 'image/png', 'data' => 'fixture']]];
+        $result = $method->invoke(app(\App\Services\GeminiService::class), $parts, true, ['type' => 'object'], 'room_analysis', 10, 0, 1);
+        $this->assertSame('{"ok":true}', $result);
+        \Illuminate\Support\Facades\Http::assertSentCount(2);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($request) =>
+            data_get($request->data(), 'contents.0.parts.1.inline_data.data') === 'fixture'
+            && data_get($request->data(), 'generationConfig.responseMimeType') === 'application/json'
+            && data_get($request->data(), 'generationConfig.responseJsonSchema') === null
+            && str_contains(data_get($request->data(), 'contents.0.parts.2.text', ''), 'schema')
+        );
+    }
+
+    public function test_preview_accepts_landscape_and_portrait_uploads_by_longest_side(): void
+    {
+        if (!function_exists('imagecreatetruecolor')) $this->markTestSkipped('GD required');
+        foreach ([[720, 480], [480, 720]] as [$width, $height]) {
+            $image = imagecreatetruecolor($width, $height);
+            ob_start(); imagepng($image); $bytes = ob_get_clean(); imagedestroy($image);
+            $normalized = app(\App\Services\RoomPreviewRasterService::class)->normalize($bytes);
+            $this->assertSame($width, $normalized['width']);
+            $this->assertSame($height, $normalized['height']);
+        }
+    }
+
+    public function test_preview_rejects_upload_with_longest_side_below_minimum(): void
+    {
+        if (!function_exists('imagecreatetruecolor')) $this->markTestSkipped('GD required');
+        $image = imagecreatetruecolor(500, 400);
+        ob_start(); imagepng($image); $bytes = ob_get_clean(); imagedestroy($image);
+        $this->expectExceptionMessage('image_too_small');
+        app(\App\Services\RoomPreviewRasterService::class)->normalize($bytes);
+    }
 }

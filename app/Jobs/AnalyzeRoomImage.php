@@ -14,6 +14,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Str;
 
 class AnalyzeRoomImage implements ShouldQueue
 {
@@ -78,7 +80,10 @@ class AnalyzeRoomImage implements ShouldQueue
                 $this->furnitureType,
                 true,
             );
-            $this->complete($room, $analysis, 'completed');
+            $usedAi = ($analysis['gemini_used'] ?? false) === true;
+            $this->complete($room, $analysis, $usedAi ? 'completed' : 'fallback', $usedAi
+                ? null
+                : 'AI analysis did not return usable room geometry. Local guidance is being used; you can retry the analysis.');
         } catch (Throwable $exception) {
             $httpStatus = $telemetry->statusCode($exception);
             $transientFailure = $httpStatus === null
@@ -99,9 +104,14 @@ class AnalyzeRoomImage implements ShouldQueue
                 $room->room_depth_m ? (float) $room->room_depth_m : null,
                 $this->furnitureType,
             );
-            $message = $transientFailure
-                ? 'Gemini is temporarily unavailable. Local room guidance is being used; you can retry the analysis.'
-                : 'Gemini could not process this analysis request. Local room guidance is being used; you can retry the analysis.';
+            $providerReason = $this->providerReason($exception);
+            $message = match ($httpStatus) {
+                403 => 'Gemini access was denied'.($providerReason ? ': '.$providerReason : '.').' Ask the system administrator to check the API key and project permissions, then retry the analysis.',
+                429 => 'Gemini has reached its request limit. Local room guidance is being used; wait a few minutes before retrying the analysis.',
+                default => $transientFailure
+                    ? 'Gemini is temporarily unavailable. Local room guidance is being used; you can retry the analysis.'
+                    : 'Gemini could not process this analysis request. Local room guidance is being used; you can retry the analysis.',
+            };
             $this->complete($room, $fallback, 'fallback', $message);
         }
     }
@@ -130,6 +140,16 @@ class AnalyzeRoomImage implements ShouldQueue
         return $current
             && $current->analysis_requested_at == $snapshot->analysis_requested_at
             && $current->gemini_consent_at == $snapshot->gemini_consent_at;
+    }
+
+    private function providerReason(Throwable $exception): ?string
+    {
+        if (! $exception instanceof RequestException) return null;
+
+        $message = data_get($exception->response->json(), 'error.message');
+        if (! is_string($message) || trim($message) === '') return null;
+
+        return Str::limit(preg_replace('/\s+/', ' ', trim($message)), 220, '…');
     }
 
     private function complete(RoomImage $room, array $analysis, string $status, ?string $message = null): void

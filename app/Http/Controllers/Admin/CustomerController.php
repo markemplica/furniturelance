@@ -10,6 +10,8 @@ class CustomerController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate(['q' => ['nullable', 'string', 'max:200']]);
+        $request->merge(['q' => trim((string) $request->input('q', ''))]);
         $customers = User::where('role', 'customer')->when($request->filled('q'), fn ($q) => $q->where(fn ($inner) => $inner->where('name', 'like', '%'.$request->q.'%')->orWhere('email', 'like', '%'.$request->q.'%')))->withCount(['reservations', 'recommendations'])->latest()->paginate(15)->withQueryString();
 
         return view('admin.customers.index', compact('customers'));

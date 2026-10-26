@@ -1,0 +1,361 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="1550" viewBox="0 0 3000 1550">
+<rect width="3000" height="1550" fill="#fbf7f3"/>
+<style>text{font-family:Arial,sans-serif;fill:#33241d}.title{font-size:35px;font-weight:bold}.subtitle{font-size:17px;fill:#715d52}.table{stroke:#573424;stroke-width:2}.tablehead{fill:#573424}.tablename{font-size:16px;font-weight:bold;fill:#fff}.row{fill:#fffaf5;stroke:#cdb8a8;stroke-width:1}.row-alt{fill:#f4e9de;stroke:#cdb8a8;stroke-width:1}.keycell{fill:#ead6c4;stroke:#c5a88f;stroke-width:1}.keytext{font-size:11px;font-weight:bold;fill:#573424}.field{font-size:12px;fill:#33241d}.edge{stroke:#573424;stroke-width:3.5;opacity:.85;fill:none}.many-mark,.one-mark{stroke:#573424;stroke-width:3;fill:none}.cardinality{font-size:15px;font-weight:bold;fill:#573424;stroke:#fbf7f3;stroke-width:4px;paint-order:stroke fill}.legend{font-size:14px;fill:#715d52}.m2m{font-size:14px;font-weight:bold;fill:#573424}</style>
+<defs><marker id="one" markerWidth="10" markerHeight="16" refX="0" refY="8" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M 2 1 L 2 15" class="one-mark"/></marker><marker id="many" markerWidth="18" markerHeight="18" refX="0" refY="9" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 9 L 15 9 M 0 9 L 11 1 M 0 9 L 11 17" class="many-mark"/></marker></defs>
+<text x="70" y="55" class="title">FurniCraft Core Database Entity Diagram</text>
+<text x="70" y="83" class="subtitle">Key fields and relationships for account, room planning, recommendations, reservations, chat, and previews</text>
+<text x="70" y="112" class="legend">M:N relationships use junction tables: users ↔ favorites ↔ furniture_products; recommendations ↔ recommendation_items ↔ furniture_products.</text>
+<text x="70" y="140" class="legend">Crowfoot = many · bar = one · PK = primary key · FK = foreign key · other technical tables are omitted for clarity.</text>
+<path d="M 380 408 L 380 650" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="380" y="422.8" class="cardinality">1</text>
+<text x="380" y="621.2" class="cardinality">1</text>
+<path d="M 380 408 L 380 1100" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="380" y="463.3" class="cardinality">1</text>
+<text x="380" y="1030.7" class="cardinality">M</text>
+<path d="M 552.5 408 L 954 650" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="588.7" y="422.8" class="cardinality">1</text>
+<text x="917.9" y="621.2" class="cardinality">M</text>
+<path d="M 690 767 L 800 761" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="699.9" y="759.5" class="cardinality">1</text>
+<text x="790.1" y="754.5" class="cardinality">M</text>
+<path d="M 545 1100 L 960.8 838" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="582.5" y="1069.4" class="cardinality">1</text>
+<text x="923.4" y="854.6" class="cardinality">M</text>
+<path d="M 1110 838 L 1110 1100" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1110" y="854.6" class="cardinality">1</text>
+<text x="1110" y="1069.4" class="cardinality">M</text>
+<path d="M 1110 508 L 1110 1100" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1110" y="554.3" class="cardinality">1</text>
+<text x="1110" y="1039.7" class="cardinality">M</text>
+<path d="M 690 295.5 L 1530 272.5" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="765.6" y="286.4" class="cardinality">1</text>
+<text x="1454.4" y="267.6" class="cardinality">M</text>
+<path d="M 1420 315.8 L 1530 302.2" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1429.9" y="307.6" class="cardinality">1</text>
+<text x="1520.1" y="296.4" class="cardinality">M</text>
+<path d="M 691.8 402.3 L 1531.9 684.3" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="767.4" y="420.7" class="cardinality">1</text>
+<text x="1456.3" y="651.9" class="cardinality">M</text>
+<path d="M 1365.5 508 L 1601.1 650" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1386.7" y="513.8" class="cardinality">1</text>
+<text x="1579.9" y="630.2" class="cardinality">M</text>
+<path d="M 1420 765.2 L 1530 772.8" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1429.9" y="758.9" class="cardinality">1</text>
+<text x="1520.1" y="765.1" class="cardinality">M</text>
+<path d="M 688 413.7 L 1528.1 695.6" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="763.6" y="432.1" class="cardinality">1</text>
+<text x="1452.5" y="663.3" class="cardinality">M</text>
+<path d="M 690 301.2 L 2260 286.8" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="831.3" y="292.9" class="cardinality">1</text>
+<text x="2118.7" y="281.1" class="cardinality">M</text>
+<path d="M 1408.3 650 L 2303.4 368" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1488.9" y="617.6" class="cardinality">1</text>
+<text x="2222.8" y="386.4" class="cardinality">M</text>
+<path d="M 690 1137.5 L 2260 800.5" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="831.3" y="1100.1" class="cardinality">1</text>
+<text x="2118.7" y="823.9" class="cardinality">M</text>
+<path d="M 1420 434.7 L 2260 653.3" class="edge" marker-start="url(#one)" marker-end="url(#many)"/>
+<text x="1495.6" y="447.4" class="cardinality">1</text>
+<text x="2184.4" y="626.6" class="cardinality">M</text>
+<rect x="70" y="200" width="620" height="208" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 70 203 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="82" y="224" class="tablename">users</text>
+<rect x="70" y="248" width="620" height="20" class="row"/>
+<rect x="70" y="248" width="52" height="20" class="keycell"/>
+<text x="83" y="262" class="keytext">PK</text>
+<text x="132" y="262" class="field">id</text>
+<rect x="70" y="268" width="620" height="20" class="row-alt"/>
+<rect x="70" y="268" width="52" height="20" class="keycell"/>
+<text x="132" y="282" class="field">name</text>
+<rect x="70" y="288" width="620" height="20" class="row"/>
+<rect x="70" y="288" width="52" height="20" class="keycell"/>
+<text x="132" y="302" class="field">email</text>
+<rect x="70" y="308" width="620" height="20" class="row-alt"/>
+<rect x="70" y="308" width="52" height="20" class="keycell"/>
+<text x="132" y="322" class="field">email_verified_at</text>
+<rect x="70" y="328" width="620" height="20" class="row"/>
+<rect x="70" y="328" width="52" height="20" class="keycell"/>
+<text x="132" y="342" class="field">password</text>
+<rect x="70" y="348" width="620" height="20" class="row-alt"/>
+<rect x="70" y="348" width="52" height="20" class="keycell"/>
+<text x="132" y="362" class="field">role</text>
+<rect x="70" y="368" width="620" height="20" class="row"/>
+<rect x="70" y="368" width="52" height="20" class="keycell"/>
+<text x="132" y="382" class="field">phone</text>
+<rect x="70" y="388" width="620" height="20" class="row-alt"/>
+<rect x="70" y="388" width="52" height="20" class="keycell"/>
+<text x="132" y="402" class="field">is_active</text>
+<rect x="70" y="650" width="620" height="268" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 70 653 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="82" y="674" class="tablename">customer_preferences</text>
+<rect x="70" y="698" width="620" height="20" class="row"/>
+<rect x="70" y="698" width="52" height="20" class="keycell"/>
+<text x="83" y="712" class="keytext">PK</text>
+<text x="132" y="712" class="field">id</text>
+<rect x="70" y="718" width="620" height="20" class="row-alt"/>
+<rect x="70" y="718" width="52" height="20" class="keycell"/>
+<text x="83" y="732" class="keytext">FK</text>
+<text x="132" y="732" class="field">user_id (unique)</text>
+<rect x="70" y="738" width="620" height="20" class="row"/>
+<rect x="70" y="738" width="52" height="20" class="keycell"/>
+<text x="132" y="752" class="field">furniture_type</text>
+<rect x="70" y="758" width="620" height="20" class="row-alt"/>
+<rect x="70" y="758" width="52" height="20" class="keycell"/>
+<text x="132" y="772" class="field">budget_min</text>
+<rect x="70" y="778" width="620" height="20" class="row"/>
+<rect x="70" y="778" width="52" height="20" class="keycell"/>
+<text x="132" y="792" class="field">budget_max</text>
+<rect x="70" y="798" width="620" height="20" class="row-alt"/>
+<rect x="70" y="798" width="52" height="20" class="keycell"/>
+<text x="132" y="812" class="field">style</text>
+<rect x="70" y="818" width="620" height="20" class="row"/>
+<rect x="70" y="818" width="52" height="20" class="keycell"/>
+<text x="132" y="832" class="field">wood_type</text>
+<rect x="70" y="838" width="620" height="20" class="row-alt"/>
+<rect x="70" y="838" width="52" height="20" class="keycell"/>
+<text x="132" y="852" class="field">varnish_finish</text>
+<rect x="70" y="858" width="620" height="20" class="row"/>
+<rect x="70" y="858" width="52" height="20" class="keycell"/>
+<text x="132" y="872" class="field">room_width_m</text>
+<rect x="70" y="878" width="620" height="20" class="row-alt"/>
+<rect x="70" y="878" width="52" height="20" class="keycell"/>
+<text x="132" y="892" class="field">room_depth_m</text>
+<rect x="70" y="898" width="620" height="20" class="row"/>
+<rect x="70" y="898" width="52" height="20" class="keycell"/>
+<text x="132" y="912" class="field">notes</text>
+<rect x="70" y="1100" width="620" height="208" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 70 1103 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="82" y="1124" class="tablename">room_images</text>
+<rect x="70" y="1148" width="620" height="20" class="row"/>
+<rect x="70" y="1148" width="52" height="20" class="keycell"/>
+<text x="83" y="1162" class="keytext">PK</text>
+<text x="132" y="1162" class="field">id</text>
+<rect x="70" y="1168" width="620" height="20" class="row-alt"/>
+<rect x="70" y="1168" width="52" height="20" class="keycell"/>
+<text x="83" y="1182" class="keytext">FK</text>
+<text x="132" y="1182" class="field">user_id</text>
+<rect x="70" y="1188" width="620" height="20" class="row"/>
+<rect x="70" y="1188" width="52" height="20" class="keycell"/>
+<text x="132" y="1202" class="field">image_path</text>
+<rect x="70" y="1208" width="620" height="20" class="row-alt"/>
+<rect x="70" y="1208" width="52" height="20" class="keycell"/>
+<text x="132" y="1222" class="field">room_width_m</text>
+<rect x="70" y="1228" width="620" height="20" class="row"/>
+<rect x="70" y="1228" width="52" height="20" class="keycell"/>
+<text x="132" y="1242" class="field">room_depth_m</text>
+<rect x="70" y="1248" width="620" height="20" class="row-alt"/>
+<rect x="70" y="1248" width="52" height="20" class="keycell"/>
+<text x="132" y="1262" class="field">analysis</text>
+<rect x="70" y="1268" width="620" height="20" class="row"/>
+<rect x="70" y="1268" width="52" height="20" class="keycell"/>
+<text x="132" y="1282" class="field">analysis_status</text>
+<rect x="70" y="1288" width="620" height="20" class="row-alt"/>
+<rect x="70" y="1288" width="52" height="20" class="keycell"/>
+<text x="132" y="1302" class="field">analyzed_at</text>
+<rect x="800" y="200" width="620" height="308" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 800 203 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="812" y="224" class="tablename">furniture_products</text>
+<rect x="800" y="248" width="620" height="20" class="row"/>
+<rect x="800" y="248" width="52" height="20" class="keycell"/>
+<text x="813" y="262" class="keytext">PK</text>
+<text x="862" y="262" class="field">id</text>
+<rect x="800" y="268" width="620" height="20" class="row-alt"/>
+<rect x="800" y="268" width="52" height="20" class="keycell"/>
+<text x="862" y="282" class="field">name</text>
+<rect x="800" y="288" width="620" height="20" class="row"/>
+<rect x="800" y="288" width="52" height="20" class="keycell"/>
+<text x="862" y="302" class="field">category</text>
+<rect x="800" y="308" width="620" height="20" class="row-alt"/>
+<rect x="800" y="308" width="52" height="20" class="keycell"/>
+<text x="862" y="322" class="field">description</text>
+<rect x="800" y="328" width="620" height="20" class="row"/>
+<rect x="800" y="328" width="52" height="20" class="keycell"/>
+<text x="862" y="342" class="field">wood_type</text>
+<rect x="800" y="348" width="620" height="20" class="row-alt"/>
+<rect x="800" y="348" width="52" height="20" class="keycell"/>
+<text x="862" y="362" class="field">varnish_finish</text>
+<rect x="800" y="368" width="620" height="20" class="row"/>
+<rect x="800" y="368" width="52" height="20" class="keycell"/>
+<text x="862" y="382" class="field">style</text>
+<rect x="800" y="388" width="620" height="20" class="row-alt"/>
+<rect x="800" y="388" width="52" height="20" class="keycell"/>
+<text x="862" y="402" class="field">price</text>
+<rect x="800" y="408" width="620" height="20" class="row"/>
+<rect x="800" y="408" width="52" height="20" class="keycell"/>
+<text x="862" y="422" class="field">width_cm</text>
+<rect x="800" y="428" width="620" height="20" class="row-alt"/>
+<rect x="800" y="428" width="52" height="20" class="keycell"/>
+<text x="862" y="442" class="field">depth_cm</text>
+<rect x="800" y="448" width="620" height="20" class="row"/>
+<rect x="800" y="448" width="52" height="20" class="keycell"/>
+<text x="862" y="462" class="field">height_cm</text>
+<rect x="800" y="468" width="620" height="20" class="row-alt"/>
+<rect x="800" y="468" width="52" height="20" class="keycell"/>
+<text x="862" y="482" class="field">image_path</text>
+<rect x="800" y="488" width="620" height="20" class="row"/>
+<rect x="800" y="488" width="52" height="20" class="keycell"/>
+<text x="862" y="502" class="field">status</text>
+<rect x="800" y="650" width="620" height="188" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 800 653 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="812" y="674" class="tablename">recommendations</text>
+<rect x="800" y="698" width="620" height="20" class="row"/>
+<rect x="800" y="698" width="52" height="20" class="keycell"/>
+<text x="813" y="712" class="keytext">PK</text>
+<text x="862" y="712" class="field">id</text>
+<rect x="800" y="718" width="620" height="20" class="row-alt"/>
+<rect x="800" y="718" width="52" height="20" class="keycell"/>
+<text x="813" y="732" class="keytext">FK</text>
+<text x="862" y="732" class="field">user_id</text>
+<rect x="800" y="738" width="620" height="20" class="row"/>
+<rect x="800" y="738" width="52" height="20" class="keycell"/>
+<text x="813" y="752" class="keytext">FK</text>
+<text x="862" y="752" class="field">customer_preference_id</text>
+<rect x="800" y="758" width="620" height="20" class="row-alt"/>
+<rect x="800" y="758" width="52" height="20" class="keycell"/>
+<text x="813" y="772" class="keytext">FK</text>
+<text x="862" y="772" class="field">room_image_id (nullable)</text>
+<rect x="800" y="778" width="620" height="20" class="row"/>
+<rect x="800" y="778" width="52" height="20" class="keycell"/>
+<text x="862" y="792" class="field">furniture_type</text>
+<rect x="800" y="798" width="620" height="20" class="row-alt"/>
+<rect x="800" y="798" width="52" height="20" class="keycell"/>
+<text x="862" y="812" class="field">summary</text>
+<rect x="800" y="818" width="620" height="20" class="row"/>
+<rect x="800" y="818" width="52" height="20" class="keycell"/>
+<text x="862" y="832" class="field">created_at</text>
+<rect x="800" y="1100" width="620" height="168" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 800 1103 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="812" y="1124" class="tablename">recommendation_items</text>
+<rect x="800" y="1148" width="620" height="20" class="row"/>
+<rect x="800" y="1148" width="52" height="20" class="keycell"/>
+<text x="813" y="1162" class="keytext">PK</text>
+<text x="862" y="1162" class="field">id</text>
+<rect x="800" y="1168" width="620" height="20" class="row-alt"/>
+<rect x="800" y="1168" width="52" height="20" class="keycell"/>
+<text x="813" y="1182" class="keytext">FK</text>
+<text x="862" y="1182" class="field">recommendation_id</text>
+<rect x="800" y="1188" width="620" height="20" class="row"/>
+<rect x="800" y="1188" width="52" height="20" class="keycell"/>
+<text x="813" y="1202" class="keytext">FK</text>
+<text x="862" y="1202" class="field">furniture_product_id</text>
+<rect x="800" y="1208" width="620" height="20" class="row-alt"/>
+<rect x="800" y="1208" width="52" height="20" class="keycell"/>
+<text x="862" y="1222" class="field">total_score</text>
+<rect x="800" y="1228" width="620" height="20" class="row"/>
+<rect x="800" y="1228" width="52" height="20" class="keycell"/>
+<text x="862" y="1242" class="field">position</text>
+<rect x="800" y="1248" width="620" height="20" class="row-alt"/>
+<rect x="800" y="1248" width="52" height="20" class="keycell"/>
+<text x="862" y="1262" class="field">explanation</text>
+<rect x="1530" y="200" width="620" height="128" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 1530 203 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="1542" y="224" class="tablename">favorites</text>
+<rect x="1530" y="248" width="620" height="20" class="row"/>
+<rect x="1530" y="248" width="52" height="20" class="keycell"/>
+<text x="1543" y="262" class="keytext">PK</text>
+<text x="1592" y="262" class="field">id</text>
+<rect x="1530" y="268" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="268" width="52" height="20" class="keycell"/>
+<text x="1543" y="282" class="keytext">FK</text>
+<text x="1592" y="282" class="field">user_id</text>
+<rect x="1530" y="288" width="620" height="20" class="row"/>
+<rect x="1530" y="288" width="52" height="20" class="keycell"/>
+<text x="1543" y="302" class="keytext">FK</text>
+<text x="1592" y="302" class="field">furniture_product_id</text>
+<rect x="1530" y="308" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="308" width="52" height="20" class="keycell"/>
+<text x="1592" y="322" class="field">created_at</text>
+<rect x="1530" y="650" width="620" height="288" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 1530 653 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="1542" y="674" class="tablename">reservations</text>
+<rect x="1530" y="698" width="620" height="20" class="row"/>
+<rect x="1530" y="698" width="52" height="20" class="keycell"/>
+<text x="1543" y="712" class="keytext">PK</text>
+<text x="1592" y="712" class="field">id</text>
+<rect x="1530" y="718" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="718" width="52" height="20" class="keycell"/>
+<text x="1592" y="732" class="field">reference</text>
+<rect x="1530" y="738" width="620" height="20" class="row"/>
+<rect x="1530" y="738" width="52" height="20" class="keycell"/>
+<text x="1543" y="752" class="keytext">FK</text>
+<text x="1592" y="752" class="field">user_id</text>
+<rect x="1530" y="758" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="758" width="52" height="20" class="keycell"/>
+<text x="1543" y="772" class="keytext">FK</text>
+<text x="1592" y="772" class="field">furniture_product_id</text>
+<rect x="1530" y="778" width="620" height="20" class="row"/>
+<rect x="1530" y="778" width="52" height="20" class="keycell"/>
+<text x="1543" y="792" class="keytext">FK</text>
+<text x="1592" y="792" class="field">recommendation_id (nullable)</text>
+<rect x="1530" y="798" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="798" width="52" height="20" class="keycell"/>
+<text x="1592" y="812" class="field">branch</text>
+<rect x="1530" y="818" width="620" height="20" class="row"/>
+<rect x="1530" y="818" width="52" height="20" class="keycell"/>
+<text x="1592" y="832" class="field">preferred_visit_at</text>
+<rect x="1530" y="838" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="838" width="52" height="20" class="keycell"/>
+<text x="1592" y="852" class="field">status</text>
+<rect x="1530" y="858" width="620" height="20" class="row"/>
+<rect x="1530" y="858" width="52" height="20" class="keycell"/>
+<text x="1592" y="872" class="field">notes</text>
+<rect x="1530" y="878" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="878" width="52" height="20" class="keycell"/>
+<text x="1592" y="892" class="field">confirmed_at</text>
+<rect x="1530" y="898" width="620" height="20" class="row"/>
+<rect x="1530" y="898" width="52" height="20" class="keycell"/>
+<text x="1543" y="912" class="keytext">FK</text>
+<text x="1592" y="912" class="field">confirmed_by (nullable)</text>
+<rect x="1530" y="918" width="620" height="20" class="row-alt"/>
+<rect x="1530" y="918" width="52" height="20" class="keycell"/>
+<text x="1592" y="932" class="field">created_at</text>
+<rect x="2260" y="200" width="620" height="168" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 2260 203 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="2272" y="224" class="tablename">chat_messages</text>
+<rect x="2260" y="248" width="620" height="20" class="row"/>
+<rect x="2260" y="248" width="52" height="20" class="keycell"/>
+<text x="2273" y="262" class="keytext">PK</text>
+<text x="2322" y="262" class="field">id</text>
+<rect x="2260" y="268" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="268" width="52" height="20" class="keycell"/>
+<text x="2273" y="282" class="keytext">FK</text>
+<text x="2322" y="282" class="field">user_id</text>
+<rect x="2260" y="288" width="620" height="20" class="row"/>
+<rect x="2260" y="288" width="52" height="20" class="keycell"/>
+<text x="2273" y="302" class="keytext">FK</text>
+<text x="2322" y="302" class="field">recommendation_id</text>
+<rect x="2260" y="308" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="308" width="52" height="20" class="keycell"/>
+<text x="2322" y="322" class="field">role</text>
+<rect x="2260" y="328" width="620" height="20" class="row"/>
+<rect x="2260" y="328" width="52" height="20" class="keycell"/>
+<text x="2322" y="342" class="field">message</text>
+<rect x="2260" y="348" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="348" width="52" height="20" class="keycell"/>
+<text x="2322" y="362" class="field">created_at</text>
+<rect x="2260" y="650" width="620" height="168" rx="3" class="table" fill="#fffaf5"/>
+<path d="M 2260 653 q 0 -3 3 -3 h 614 q 3 0 3 3 v 34 h -620 z" class="tablehead"/>
+<text x="2272" y="674" class="tablename">room_preview_generations</text>
+<rect x="2260" y="698" width="620" height="20" class="row"/>
+<rect x="2260" y="698" width="52" height="20" class="keycell"/>
+<text x="2273" y="712" class="keytext">PK</text>
+<text x="2322" y="712" class="field">id</text>
+<rect x="2260" y="718" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="718" width="52" height="20" class="keycell"/>
+<text x="2273" y="732" class="keytext">FK</text>
+<text x="2322" y="732" class="field">room_image_id</text>
+<rect x="2260" y="738" width="620" height="20" class="row"/>
+<rect x="2260" y="738" width="52" height="20" class="keycell"/>
+<text x="2273" y="752" class="keytext">FK</text>
+<text x="2322" y="752" class="field">furniture_product_id</text>
+<rect x="2260" y="758" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="758" width="52" height="20" class="keycell"/>
+<text x="2322" y="772" class="field">status</text>
+<rect x="2260" y="778" width="620" height="20" class="row"/>
+<rect x="2260" y="778" width="52" height="20" class="keycell"/>
+<text x="2322" y="792" class="field">placement_json</text>
+<rect x="2260" y="798" width="620" height="20" class="row-alt"/>
+<rect x="2260" y="798" width="52" height="20" class="keycell"/>
+<text x="2322" y="812" class="field">completed_at</text>
+<text x="70" y="1518" class="legend">Shows 10 core entities and their key columns; full schema details remain in the Laravel migrations.</text>
+</svg>

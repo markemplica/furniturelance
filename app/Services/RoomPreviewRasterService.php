@@ -20,7 +20,7 @@ class RoomPreviewRasterService
         if (! is_array($info) || ! isset($info[0], $info[1])) throw new RuntimeException('invalid_image');
         $width = (int) $info[0];
         $height = (int) $info[1];
-        if ($width < (int) config('roompreview.min_dimension') || $height < (int) config('roompreview.min_dimension')) throw new RuntimeException('image_too_small');
+        if (max($width, $height) < (int) config('roompreview.min_dimension')) throw new RuntimeException('image_too_small');
         if ($width * $height > (int) config('roompreview.max_pixels')) throw new RuntimeException('image_pixel_limit');
         if (! $this->available()) return ['bytes' => $bytes, 'mime' => $info['mime'] ?? 'image/jpeg', 'width' => $width, 'height' => $height, 'quality' => null, 'normalized' => false];
 
@@ -66,15 +66,12 @@ class RoomPreviewRasterService
         $itemWidth = imagesx($item);
         $itemHeight = imagesy($item);
         $widthPercent = max(1.0, min(90.0, (float) ($placement['max_width_percent'] ?? 35)));
-        $targetWidth = max(24, (int) round($canvasWidth * $widthPercent / 100));
-        $catalogRatio = ((float) $product->height_cm > 0 && (float) $product->width_cm > 0)
-            ? (float) $product->height_cm / (float) $product->width_cm
-            : $itemHeight / max(1, $itemWidth);
-        $targetHeight = max(24, (int) round($targetWidth * min(3.2, max(0.35, $catalogRatio))));
-        if ($targetHeight > $canvasHeight * 0.92) {
-            $targetHeight = (int) ($canvasHeight * 0.92);
-            $targetWidth = max(1, (int) round($targetHeight / max(0.35, $catalogRatio)));
-        }
+        // Scale both axes together using the actual catalog photograph/cutout.
+        // Physical dimensions do not describe the projected shape of a multi-piece set.
+        $desiredWidth = max(24, $canvasWidth * $widthPercent / 100);
+        $scale = min($desiredWidth / $itemWidth, $canvasWidth * 0.9 / $itemWidth, $canvasHeight * 0.92 / $itemHeight);
+        $targetWidth = max(1, (int) round($itemWidth * $scale));
+        $targetHeight = max(1, (int) round($itemHeight * $scale));
         $centerX = (int) round($canvasWidth * max(0.05, min(0.95, (float) ($placement['x_percent'] ?? 50) / 100)));
         $bottomY = (int) round($canvasHeight * max(0.05, min(0.98, (float) ($placement['y_percent'] ?? 86) / 100)));
         $left = max(0, min($canvasWidth - $targetWidth, $centerX - (int) ($targetWidth / 2)));
@@ -82,7 +79,7 @@ class RoomPreviewRasterService
 
         // A small translucent contact shadow grounds the item at its floor anchor.
         $shadow = imagecolorallocatealpha($room, 20, 16, 12, 88);
-        imagefilledellipse($room, $centerX, min($canvasHeight - 1, $bottomY), (int) ($targetWidth * 0.82), max(3, (int) ($targetWidth * 0.09)), $shadow);
+        imagefilledellipse($room, $left + (int) round($targetWidth / 2), min($canvasHeight - 1, $top + $targetHeight), (int) ($targetWidth * 0.82), max(3, (int) ($targetWidth * 0.09)), $shadow);
         imagealphablending($room, true);
         imagecopyresampled($room, $item, $left, $top, 0, 0, $targetWidth, $targetHeight, $itemWidth, $itemHeight);
         ob_start();

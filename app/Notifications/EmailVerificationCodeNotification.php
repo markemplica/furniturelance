@@ -25,9 +25,20 @@ class EmailVerificationCodeNotification extends Notification implements ShouldQu
     {
         return (new MailMessage)
             ->subject('Verify your FurniCraft account')
-            ->greeting('Welcome to FurniCraft')
-            ->line('Enter this verification code to activate your account:')
-            ->line($this->code)
-            ->line('The code expires in 15 minutes and can only be used once. If you did not create this account, you can ignore this email.');
+            ->view([
+                'html' => 'emails.customer-notification',
+                'text' => 'emails.customer-notification-text',
+            ], [
+                'eyebrow' => 'ACCOUNT SECURITY',
+                'heading' => 'Verify your email',
+                'intro' => 'Welcome to FurniCraft, '.$notifiable->name.'. Enter this code on the verification page to activate your customer account.',
+                'codeLabel' => 'YOUR VERIFICATION CODE',
+                'code' => $this->code,
+                'expiry' => 'This code expires in 15 minutes and can only be used once.',
+                'details' => [],
+                'buttonLabel' => null,
+                'buttonUrl' => null,
+                'note' => 'If you did not create this account, you can safely ignore this email.',
+            ]);
     }
 }

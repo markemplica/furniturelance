@@ -21,7 +21,8 @@
             </div>
             @if($topProducts->count() > 1)<button class="carousel-control-prev" type="button" data-bs-target="#topProducts" data-bs-slide="prev"><span class="carousel-control-prev-icon"></span><span class="visually-hidden">Previous</span></button><button class="carousel-control-next" type="button" data-bs-target="#topProducts" data-bs-slide="next"><span class="carousel-control-next-icon"></span><span class="visually-hidden">Next</span></button>@endif
         </div>
-        <p class="ranking-note">Featured products combine customer views, favorites, and confirmed or requested reservations. {{ auth()->check() ? 'View more to explore the full catalog.' : 'Log in to access the full customer catalog.' }}</p>
+        <p class="ranking-note">Featured products combine customer views, favorites, and confirmed or requested reservations. View more to explore the full catalog.</p>
     </div>
 </section>
 @endsection
+

@@ -9,6 +9,14 @@ use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
+    public function favorites(Request $request)
+    {
+        $products = $request->user()->favorites()
+            ->orderByPivot('created_at', 'desc')->paginate(12);
+
+        return view('catalog.favorites', compact('products'));
+    }
+
     public function index(Request $request)
     {
         $query = FurnitureProduct::where('status', 'active')->withCount(['favorites', 'views', 'reservations']);
@@ -36,7 +44,7 @@ class CatalogController extends Controller
         }
         $products = $query->orderBy('name')->paginate(12)->withQueryString();
         $options = ['categories' => FurnitureProduct::where('status', 'active')->distinct()->orderBy('category')->pluck('category'), 'styles' => FurnitureProduct::where('status', 'active')->distinct()->orderBy('style')->pluck('style'), 'woods' => FurnitureProduct::where('status', 'active')->distinct()->orderBy('wood_type')->pluck('wood_type'), 'finishes' => FurnitureProduct::where('status', 'active')->distinct()->orderBy('varnish_finish')->pluck('varnish_finish')];
-        $favoriteIds = $request->user()->favorites()->pluck('furniture_products.id');
+        $favoriteIds = $request->user()?->favorites()->pluck('furniture_products.id') ?? collect();
 
         return view('catalog.index', compact('products', 'options', 'favoriteIds'));
     }
@@ -57,7 +65,7 @@ class CatalogController extends Controller
             }
         })->withCount(['views', 'favorites'])->limit(30)->get()->sortByDesc(fn ($p) => (str_starts_with(strtolower($p->name), strtolower($simplified)) ? 1000 : 0) + $p->views_count + ($p->favorites_count * 3))->take(24)->values();
 
-        $favoriteIds = $request->user()->favorites()->pluck('furniture_products.id');
+        $favoriteIds = $request->user()?->favorites()->pluck('furniture_products.id') ?? collect();
 
         return response()->json($products->map(fn ($p) => [
             'name' => $p->name,
@@ -75,8 +83,10 @@ class CatalogController extends Controller
     public function show(Request $request, FurnitureProduct $furnitureProduct)
     {
         abort_if($furnitureProduct->status !== 'active', 404);
-        FurnitureViewEvent::create(['user_id' => $request->user()->id, 'furniture_product_id' => $furnitureProduct->id, 'session_key' => $request->session()->getId()]);
-        $isFavorite = Favorite::where('user_id', $request->user()->id)->where('furniture_product_id', $furnitureProduct->id)->exists();
+        if ($request->user()) {
+            FurnitureViewEvent::create(['user_id' => $request->user()->id, 'furniture_product_id' => $furnitureProduct->id, 'session_key' => $request->session()->getId()]);
+        }
+        $isFavorite = $request->user() && Favorite::where('user_id', $request->user()->id)->where('furniture_product_id', $furnitureProduct->id)->exists();
 
         return view('catalog.show', ['product' => $furnitureProduct, 'isFavorite' => $isFavorite]);
     }

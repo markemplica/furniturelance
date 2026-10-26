@@ -19,15 +19,46 @@
     <a class="btn btn-outline-dark" href="{{ route('preferences.edit') }}">Adjust room &amp; preferences</a>
 </header>
 
-<x-workflow-progress :step="3" />
+<p class="small text-muted">Current filters: PHP {{ number_format($recommendation->preference->budget_min, 2) }}–{{ number_format($recommendation->preference->budget_max, 2) }} · {{ $recommendation->preference->wood_type ?: 'Any wood' }} · {{ $recommendation->preference->style ?: 'Any style' }} · {{ $recommendation->preference->varnish_finish ?: 'Any finish' }}</p><x-workflow-progress :step="3" />
 
-<div class="ai-matches-dashboard">
+<div class="ai-matches-dashboard {{ !$previewProduct ? 'has-no-exact-matches' : '' }}">
+@if(!$previewProduct)
+<section class="panel no-match-panel">
+<header class="no-match-intro"><span class="section-kicker">Your preferences</span><h2>No exact matches</h2><p>No furniture matches all your preferences. Here are the closest available alternatives, with the differences shown below.</p><a class="btn btn-outline-dark btn-sm" href="{{ route('preferences.edit') }}">Adjust preferences</a></header>
+<div class="closest-suggestions">
+@if($suggestions->isNotEmpty())
+<h3 class="h5">Closest suggestions</h3>
+<p class="small text-muted">These alternatives do not meet every preference. Review the differences before choosing.</p>
+<div class="closest-suggestions-grid">
+@foreach($suggestions as $suggestion)
+<article class="closest-suggestion-card">
+<a href="{{ route('catalog.show', $suggestion['product']) }}"><img src="{{ $suggestion['product']->image_url }}" alt="{{ $suggestion['product']->name }}"></a>
+<div class="closest-suggestion-body"><span class="badge text-bg-light mb-2">Alternative · not an exact match</span>
+<h4 class="h6">{{ $suggestion['product']->name }}</h4><strong>PHP {{ number_format($suggestion['product']->price, 2) }}</strong>
+<ul class="small mt-2">@foreach($suggestion['differences'] as $difference)<li>{{ $difference }}</li>@endforeach</ul>
+<div class="d-flex flex-wrap gap-2">
+<a class="btn btn-outline-dark btn-sm" href="{{ route('catalog.show', $suggestion['product']) }}">View product</a>
+@if($room)
+<a class="btn btn-primary btn-sm" href="{{ route('room.visualize', ['roomImage' => $room, 'product' => $suggestion['product']->id, 'recommendation' => $recommendation->id]) }}">2D preview</a>
+@else
+<a class="btn btn-primary btn-sm" href="{{ route('preferences.edit') }}#room-preview">Upload room for 2D preview</a>
+@endif
+</div>
+</div></article>
+@endforeach
+</div>
+@else
+<p>No active alternatives are available for this furniture type.</p>
+@endif
+</div>
+@include('recommendations._chat')</section>
+@endif
 @if($room && $previewProduct)
     <section class="comparison-panel recommendation-inline-preview" id="ai-room-preview" aria-labelledby="inline-preview-heading">
         <aside class="inline-preview-story">
             <p class="section-kicker">Your room, reimagined</p>
             <h2 id="inline-preview-heading">See <span data-inline-preview-name>{{ $previewProduct->name }}</span> in your space.</h2>
-            <p class="inline-preview-intro">The selected furniture is automatically positioned and scaled using the room photo and its catalog dimensions.</p>
+            <p class="inline-preview-intro">The selected furniture is automatically positioned and scaled using the room photo, visible floor area, and perspective.</p>
 
             <div class="room-source-card inline-room-source">
                 <img src="{{ route('room-images.original', $room) }}" alt="Uploaded room thumbnail">
@@ -49,24 +80,7 @@
                 </div>
             </article>
 
-            <aside class="ai-matches-chat">
-        <div class="chat-panel">
-            <div class="chat-head"><h2 class="h4 mb-1">Ask about these matches</h2><p class="small mb-0">Answers stay within this recommendation and Lance catalog data.</p></div>
-            <div class="chat-log">
-                @forelse($recommendation->messages as $message)
-                    <div class="chat-message {{ $message->role }}"><strong>{{ $message->role === 'user' ? 'You' : 'FurniCraft' }}</strong>@if($message->role === 'assistant')<small class="d-block text-muted">{{ match($message->ai_source) { 'gemini' => 'Gemini response', 'catalog-rule' => 'Current catalog answer', 'local-fallback' => 'Local catalog fallback', default => $message->gemini_used ? 'AI-assisted response' : 'Local response' } }}</small>@endif<div>{{ $message->message }}</div></div>
-                @empty
-                    <p class="text-light-emphasis">Ask about material, finish, dimensions, price, or room suitability.</p>
-                @endforelse
-            </div>
-            <form class="chat-compose" method="POST" action="{{ route('recommendations.chat',$recommendation) }}">
-                @csrf
-                <label class="visually-hidden" for="message">Question</label>
-                <textarea class="form-control" id="message" name="message" rows="1" maxlength="1000" placeholder="Ask if a product or preference is available" required></textarea>
-                <button class="btn btn-light w-100 mt-2">Ask FurniCraft</button>
-            </form>
-        </div>
-            </aside>
+@include('recommendations._chat')
         </aside>
 
         <div class="inline-preview-visual">
@@ -110,7 +124,13 @@
                 <div class="room-preview-loading" data-preview-loading role="status" aria-live="polite">Uploading · Analyzing room · Fitting furniture · Checking the result</div>
             </div>
             <div class="preview-detection-row" data-preview-detections aria-live="polite"></div>
+            @unless($room->gemini_consent_at)
+            <p class="small text-muted">Automatic visual sizing is active. For AI room fitting, upload the photo again and select “Allow Google Gemini to analyze this photo and create previews.”</p>
+            @endunless
             <div class="room-preview-actions">
+                @if($room->gemini_consent_at)
+                <button type="button" class="btn btn-outline-primary" data-preview-retry>Retry AI preview</button>
+                @endif
                 <button type="button" class="btn btn-primary" data-preview-download>Download preview (PNG)</button>
                 <form method="POST" action="{{ route('room.reanalyze',$room) }}">@csrf<button class="btn btn-outline-secondary" type="submit">Try again</button></form>
                 <a class="btn btn-outline-secondary" href="{{ route('preferences.edit',['room'=>$room->id]) }}#room-preview">Upload another photo</a>
@@ -120,6 +140,7 @@
     </section>
 @endif
 
+    @if($recommendation->items->isNotEmpty())
     <section class="ai-matches-results" aria-labelledby="matches-heading">
         <h2 id="matches-heading" class="h4 mb-3">Ranked matches</h2>
         <div class="fc-card overflow-hidden">
@@ -152,7 +173,7 @@
                             @csrf
                             <input type="hidden" name="furniture_product_id" value="{{ $item->product->id }}">
                             <input type="hidden" name="recommendation_id" value="{{ $recommendation->id }}">
-                            <input class="form-control form-control-sm" type="datetime-local" name="preferred_visit_at" min="{{ now()->format('Y-m-d\\TH:i') }}" aria-label="Preferred visit date and time"><select class="form-select form-select-sm" name="branch" required>@foreach(config('furnicraft.branches') as $branch)<option value="{{ $branch }}" @selected($branch === config('furnicraft.branch'))>{{ $branch }}</option>@endforeach</select>
+                            <input class="form-control form-control-sm" type="datetime-local" name="preferred_visit_at" min="{{ now()->format('Y-m-d\\TH:i') }}" aria-label="Preferred visit date and time">
                             @include('reservations._customization-fields', ['formSuffix' => 'recommendation-'.$item->product->id])<button class="btn btn-sm btn-primary">Reserve</button>
                         </form>
                     </div>
@@ -160,6 +181,7 @@
             @endforeach
         </div>
     </section>
+    @endif
 
 
 </div>
