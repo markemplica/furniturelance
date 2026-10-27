@@ -158,4 +158,5 @@ Run the deterministic geometry unit checks with npm run test:room-preview. The e
 
 Known limitations: a single room photo cannot reveal exact depth or hidden obstacles. Perspective and furniture scale remain estimates, product images should be tightly cropped transparent PNG cutouts for the cleanest composite, and room-fit claims must be confirmed against measured dimensions before reserving.
 #   l a n c e 2 . 0  
+ #   f u r n i t u r e  
  
