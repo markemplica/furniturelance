@@ -5,14 +5,14 @@ FurniCraft is a Laravel web application for Lance Furniture Shop. It gives authe
 ## Scope
 
 - Exactly two roles: Customer and Administrator/Owner
-- Authentication is required for every customer and administrator feature; there is no guest browsing mode
-- The enforced customer flow is login → browse and save preferences → upload and analyze a room → generate recommendations and chat → submit a reservation request
+- Guests can browse the home page and public catalog; customer planning, favorites, reservations, and all administrator features require sign-in
+- The protected customer flow is sign-in → save preferences → optionally upload and analyze a room photo → generate recommendations and chat → submit a reservation request
 - Content-based and collaborative recommendation scoring with an optional Gemini-generated explanation
 - Gemini-assisted chatbot restricted to the current recommendation and Lance Furniture Shop catalog facts
-- Uploaded room-image analysis can estimate width and depth with Gemini, accepts customer measurements as the authoritative override, and feeds the draggable 2D furniture overlay
+- The customer-facing room upload is photo-first and does not ask for room dimensions. Gemini may estimate width and depth; local planning guidance is used when AI is not authorized or unavailable. Legacy optional dimensions remain supported by the backend.
 - Gemini room analysis and furnished-room image generation run in the database queue; the preview page polls for completion and continues to show the local 2D overlay while image generation runs
 - Reservation requests only; no payment, delivery tracking, inventory, or financial management
-- Queued confirmation and password-reset notifications with an audit log
+- Queued email verification and reservation-confirmation notifications; password-reset codes are sent synchronously and logged
 - Password-reset codes stored as hashes, valid for 15 minutes, single-use, and request-rate-limited
 - Responsive Bootstrap interface for phone and desktop browsers
 
@@ -22,7 +22,7 @@ FurniCraft is a Laravel web application for Lance Furniture Shop. It gives authe
 - Composer 2
 - A local MySQL or MariaDB server for development and deployment
 - PHP extensions normally enabled by XAMPP for Laravel (`pdo_mysql`, `mbstring`, `openssl`, `fileinfo`)
-- Internet access for Gemini and the Bootstrap CDN
+- Internet access for Gemini and the configured email provider. Bootstrap is bundled through Vite for the frontend.
 
 This workspace is now configured to use a local MariaDB server on `127.0.0.1:3306`. Existing application records were copied from `database/database.sqlite` into the `furnicraft` MariaDB database; the original SQLite file remains untouched as a fallback copy. The private `.env` uses a dedicated local database account. `.env.example` shows generic XAMPP defaults and retains local/debug and log-mail settings; neither file represents a production deployment. See [Production deployment and recovery](#production-deployment-and-recovery) before serving real customers.
 
@@ -55,6 +55,13 @@ php artisan storage:link
 ## Production deployment and recovery
 
 FurniCraft is currently a locally run prototype. No hosting target, public HTTPS URL, real mail provider, backup destination, restore drill, or supervised production services have been verified. Do not describe the system as production deployed until these steps are completed on the target host.
+
+## Beta test preflight
+
+- Use an isolated beta database and test accounts; do not expose the local development configuration to testers. Start from the credential-free [.env.beta.example](.env.beta.example) on the beta host, then keep its real `.env` private. The local startup script binds to all network interfaces, so the beta host must have `APP_DEBUG=false` and HTTPS before it is shared.
+- Decide whether beta should exercise room-preview v2. If enabled, start with `ROOM_PREVIEW_V2_ROLLOUT_PERCENT=5` or less, verify GD in both web and worker PHP runtimes, inspect fallbacks, then increase gradually. The local `.env` is private and is not a beta deployment template.
+- Run `php artisan system:readiness`, then independently verify a live queue worker, scheduler, real email delivery, Gemini access, and external `/up` and TLS checks. The readiness command cannot prove those services are running.
+- Follow the cross-browser, keyboard, interrupted-network, Gemini-outage, concurrent-reservation, and restore-drill checks in [browser-acceptance.md](docs/browser-acceptance.md) before inviting representative customers.
 
 ### Host configuration
 
@@ -102,7 +109,7 @@ The model name is configurable so it can be changed without modifying applicatio
 
 ## Email configuration
 
-Laravel Notifications implement both required email flows and use the configured queue. For local inspection, the default `log` mailer writes messages to `storage/logs/laravel.log`. Configure a real SMTP provider for deployment:
+Email verification and reservation-confirmation notifications use Laravel's queue. Password-reset email is sent synchronously by its controller. For local inspection, the default `log` mailer writes messages to `storage/logs/laravel.log`. Configure a real mail provider for deployment:
 
 ```env
 MAIL_MAILER=smtp
@@ -126,7 +133,7 @@ php artisan view:cache
 vendor\bin\pint --test
 ```
 
-The feature suite verifies the login-only access model, required preferences and room analysis, safe post-login return, role authorization, partial-word autocomplete, hybrid recommendations, Gemini dimension estimates, catalog-only room previews, hashed reset codes, rate limiting, and reservation-confirmation notifications.
+The feature suite verifies public and protected access, required preferences and room analysis, safe post-login return, role authorization, partial-word autocomplete, hybrid recommendations, Gemini dimension estimates, catalog-only room previews, hashed reset codes, rate limiting, and reservation-confirmation notifications.
 
 ## Important privacy notes
 
@@ -134,7 +141,7 @@ The feature suite verifies the login-only access model, required preferences and
 - Reset codes are never stored in plaintext.
 - Individual view and favorite events are used for recommendations and aggregate ranking; the customer interface does not expose another customer’s activity.
 - Configure HTTPS, production mail, backups, retention rules, and a privacy notice before real customer use.
-- Room-photo AI processing requires an explicit per-upload opt-in; unconsented images use local guidance only. New photos and generated previews are privately stored, metadata-stripped, and scheduled for removal after `ROOM_IMAGE_RETENTION_DAYS` (default 90).
+- Room-photo AI processing requires an explicit per-upload opt-in; unconsented images use local guidance only. New photos and generated previews are privately stored, metadata-stripped, and scheduled for removal after `ROOM_IMAGE_RETENTION_DAYS` (default 30).
 - The retention task is scheduled in Laravel. Run `php artisan schedule:work` locally, or configure the standard Laravel scheduler cron entry in production; also run `php artisan room-images:secure-legacy` once after upgrading older installations.
 - The privacy notice describes the application’s controls and external Gemini transfer. It is not a certification or legal compliance determination.
 
@@ -150,3 +157,5 @@ Room analyses are stored in room_images.analysis and cached by the processed pho
 Run the deterministic geometry unit checks with npm run test:room-preview. The existing Laravel feature suite is run with php artisan test. Gemini settings remain in the existing .env keys GEMINI_API_KEY, GEMINI_MODEL, and GEMINI_FALLBACK_MODEL; the API key is only read by the server.
 
 Known limitations: a single room photo cannot reveal exact depth or hidden obstacles. Perspective and furniture scale remain estimates, product images should be tightly cropped transparent PNG cutouts for the cleanest composite, and room-fit claims must be confirmed against measured dimensions before reserving.
+#   l a n c e 2 . 0  
+ 
